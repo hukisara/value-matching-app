@@ -6,14 +6,16 @@ import { QUESTIONS, COLUMNS } from '@/lib/questions'
 import { calculateResults } from '@/lib/matching'
 import type { Room, Participant } from '@/types/database'
 
-type View = 'JOIN' | 'LOBBY' | 'PLAYING' | 'WAITING' | 'CALCULATING' | 'RESULT'
+// 'JOIN' を 'NAME_INPUT' と 'ROOM_SELECT' に分割しました
+type View = 'NAME_INPUT' | 'ROOM_SELECT' | 'LOBBY' | 'PLAYING' | 'WAITING' | 'CALCULATING' | 'RESULT'
 
 export default function Home() {
   const [userId, setUserId] = useState<string | null>(null)
   const [rooms, setRooms] = useState<Room[]>([])
   const [participants, setParticipants] = useState<Participant[]>([])
 
-  const [currentView, setCurrentView] = useState<View>('JOIN')
+  // 初期画面を NAME_INPUT に変更
+  const [currentView, setCurrentView] = useState<View>('NAME_INPUT')
   const [roomCode, setRoomCode] = useState('')
   const [joinCodeInput, setJoinCodeInput] = useState('')
   const [userName, setUserName] = useState('')
@@ -101,7 +103,7 @@ export default function Home() {
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [userId])
+  }, [userId, isRestoring])
 
   const currentRoom = useMemo(() => rooms.find((r) => r.code === roomCode), [rooms, roomCode])
   const roomParticipants = useMemo(() => participants.filter((p) => p.room_code === roomCode), [participants, roomCode])
@@ -123,8 +125,14 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [currentView])
 
+  // --- Actions ---
+  const handleNextToRoomSelect = useCallback(() => {
+    if (!userName.trim()) { setErrorMsg('ニックネームを入力してください。'); return }
+    setErrorMsg('')
+    setCurrentView('ROOM_SELECT')
+  }, [userName])
+
   const handleCreateRoom = useCallback(async () => {
-    if (!userName.trim()) { setErrorMsg('まずニックネームを入力してください。'); return }
     const code = Math.floor(1000 + Math.random() * 9000).toString()
     try {
       const { error: roomError } = await supabase.from('rooms').insert({ code, status: 'waiting', host_id: userId! })
@@ -136,7 +144,6 @@ export default function Home() {
   }, [userName, userId])
 
   const handleJoinRoom = useCallback(async () => {
-    if (!userName.trim()) { setErrorMsg('まずニックネームを入力してください。'); return }
     if (!joinCodeInput.trim()) { setErrorMsg('パスコードを入力してください。'); return }
     const room = rooms.find((r) => r.code === joinCodeInput)
     if (!room) { setErrorMsg('パスコードが間違っています。'); return }
@@ -195,15 +202,25 @@ export default function Home() {
     await supabase.from('rooms').update({ status: 'calculating' }).eq('id', currentRoom.id)
   }, [isHost, currentRoom])
 
-  const resetGame = useCallback(() => {
+  // 完全に初期状態に戻すためのリセット関数
+  const completelyResetGame = useCallback(() => {
     setRoomCode(''); setJoinCodeInput(''); setLocalAnswers([]); setCurrentQIdx(0)
-    setIsHost(false); setCurrentView('JOIN'); setShowMethodology(false); setIsRestoring(false)
+    setIsHost(false); setUserName(''); setCurrentView('NAME_INPUT'); setShowMethodology(false); setIsRestoring(false)
   }, [])
 
   if (!userId || isRestoring) return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center gap-4">
       <div className="w-10 h-10 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin" />
       <p className="text-sm font-bold text-gray-500">データを読み込んでいます...</p>
+    </div>
+  )
+
+  // --- UI Components ---
+  const ResetButton = () => (
+    <div className="mt-8 text-center pb-4">
+      <button onClick={completelyResetGame} className="text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors">
+        ✕ 最初からやり直す（退出）
+      </button>
     </div>
   )
 
@@ -227,7 +244,9 @@ export default function Home() {
     </div>
   )
 
-  if (currentView === 'JOIN') return (
+  // --- Views ---
+  
+  if (currentView === 'NAME_INPUT') return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col justify-center py-8 px-4">
       <div className="max-w-md w-full mx-auto">
         <div className="mb-8 text-center">
@@ -236,32 +255,16 @@ export default function Home() {
         </div>
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 mb-6">
           {errorMsg && <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-6 text-sm font-medium text-center border border-red-200">{errorMsg}</div>}
-          <div className="mb-6">
-            <label className="block text-sm font-bold text-gray-700 mb-2">1. まずはニックネームを入力</label>
+          <div className="mb-4">
+            <label className="block text-sm font-bold text-gray-700 mb-2">まずはニックネームを入力</label>
             <input type="text" placeholder="例：たろう" value={userName} onChange={(e) => setUserName(e.target.value)}
               className="w-full p-4 rounded-xl border-2 border-gray-200 bg-gray-50 text-gray-900 focus:outline-none focus:border-gray-800 focus:bg-white transition-colors text-lg" maxLength={10} />
           </div>
-          <div className="h-px bg-gray-200 w-full mb-6" />
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">2-A. 新しく始める（幹事）</label>
-              <button onClick={handleCreateRoom} className="w-full py-4 rounded-xl bg-gray-900 text-white font-bold text-lg hover:bg-gray-800 active:scale-95 transition-transform">新しくルームを作る</button>
-            </div>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
-              <div className="relative flex justify-center"><span className="px-3 bg-white text-sm text-gray-400 font-bold">または</span></div>
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">2-B. 招待されたルームに参加</label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <input type="text" placeholder="4桁のパスコード" value={joinCodeInput} onChange={(e) => setJoinCodeInput(e.target.value)}
-                  className="flex-1 p-4 rounded-xl border-2 border-gray-200 bg-gray-50 text-center text-xl tracking-widest focus:outline-none focus:border-gray-800 focus:bg-white transition-colors" maxLength={4} />
-                <button onClick={handleJoinRoom} className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gray-800 text-white font-bold hover:bg-gray-700 active:scale-95 transition-transform">参加する</button>
-              </div>
-            </div>
-          </div>
+          <button onClick={handleNextToRoomSelect} className="w-full py-4 rounded-xl bg-blue-600 text-white font-bold text-lg hover:bg-blue-700 active:scale-95 transition-transform shadow-sm">
+            次へ
+          </button>
         </div>
-        <div className="text-center">
+        <div className="text-center mt-8">
           <button onClick={() => setShowMethodology(true)} className="text-sm font-bold text-gray-400 hover:text-gray-600 underline underline-offset-4">開発者の想いとアルゴリズム</button>
         </div>
       </div>
@@ -269,9 +272,43 @@ export default function Home() {
     </div>
   )
 
-  if (currentView === 'LOBBY') return (
+  if (currentView === 'ROOM_SELECT') return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col justify-center py-8 px-4">
-      <div className="max-w-md w-full mx-auto flex flex-col items-center">
+      <div className="max-w-md w-full mx-auto">
+        <div className="mb-6">
+          <button onClick={() => setCurrentView('NAME_INPUT')} className="text-sm font-bold text-gray-500 hover:text-gray-800 flex items-center gap-1">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+            名前変更に戻る
+          </button>
+        </div>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 mb-6">
+          {errorMsg && <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-6 text-sm font-medium text-center border border-red-200">{errorMsg}</div>}
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">A. 新しく始める（幹事）</label>
+              <button onClick={handleCreateRoom} className="w-full py-4 rounded-xl bg-gray-900 text-white font-bold text-lg hover:bg-gray-800 active:scale-95 transition-transform shadow-sm">新しくルームを作る</button>
+            </div>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+              <div className="relative flex justify-center"><span className="px-3 bg-white text-sm text-gray-400 font-bold">または</span></div>
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">B. 招待されたルームに参加</label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input type="text" placeholder="4桁のパスコード" value={joinCodeInput} onChange={(e) => setJoinCodeInput(e.target.value)}
+                  className="flex-1 p-4 rounded-xl border-2 border-gray-200 bg-gray-50 text-center text-xl tracking-widest focus:outline-none focus:border-gray-800 focus:bg-white transition-colors" maxLength={4} />
+                <button onClick={handleJoinRoom} className="w-full sm:w-auto px-8 py-4 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 active:scale-95 transition-transform shadow-sm">参加する</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  if (currentView === 'LOBBY') return (
+    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col py-8 px-4 relative">
+      <div className="max-w-md w-full mx-auto flex flex-col items-center flex-grow justify-center">
         <span className="text-sm font-bold text-gray-500 mb-2">招待パスコード</span>
         <div className="text-6xl font-black tracking-widest text-gray-900 mb-4 font-mono bg-white px-8 py-3 rounded-3xl shadow-sm border-2 border-gray-100">{roomCode}</div>
         {isHost && (
@@ -309,14 +346,15 @@ export default function Home() {
           </div>
         )}
       </div>
+      <ResetButton />
     </div>
   )
 
   if (currentView === 'PLAYING') {
     const q = QUESTIONS[currentQIdx]
     return (
-      <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col justify-center py-8 px-4">
-        <div className="max-w-2xl w-full mx-auto">
+      <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col py-8 px-4 relative">
+        <div className="max-w-2xl w-full mx-auto flex-grow flex flex-col justify-center">
           <div className="flex flex-col md:flex-row justify-between md:items-end mb-8 gap-4">
             <div>
               <span className="text-gray-400 text-xs font-bold uppercase tracking-wider block mb-1">Question {currentQIdx + 1} of {QUESTIONS.length}</span>
@@ -334,6 +372,7 @@ export default function Home() {
             <button onClick={() => handleAnswer(-1)} className="p-6 rounded-2xl bg-white border-2 border-gray-200 text-xl font-bold text-gray-800 hover:border-gray-900 hover:bg-gray-50 active:scale-95 transition-all shadow-sm">{q.b}</button>
           </div>
         </div>
+        <ResetButton />
       </div>
     )
   }
@@ -341,8 +380,8 @@ export default function Home() {
   if (currentView === 'WAITING') {
     const col = COLUMNS[columnIdx]
     return (
-      <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col justify-center py-8 px-4">
-        <div className="max-w-md w-full mx-auto text-center">
+      <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col py-8 px-4 relative">
+        <div className="max-w-md w-full mx-auto text-center flex-grow flex flex-col justify-center">
           <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-gray-200">
             <svg className="w-10 h-10 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
           </div>
@@ -372,6 +411,7 @@ export default function Home() {
             <button onClick={triggerCalculation} className="mt-8 w-full py-5 rounded-2xl bg-gray-900 text-white font-bold text-xl hover:bg-gray-800 active:scale-95 transition-transform shadow-[4px_4px_0_0_rgba(156,163,175,1)]">結果を解析する</button>
           )}
         </div>
+        <ResetButton />
       </div>
     )
   }
@@ -393,7 +433,7 @@ export default function Home() {
       <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center">
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 text-center max-w-md w-full mx-4">
           <p className="mb-6 font-bold text-gray-600">計算に必要なデータが足りません。</p>
-          <button onClick={resetGame} className="w-full py-3 bg-gray-200 rounded-xl font-bold text-gray-700 hover:bg-gray-300">トップに戻る</button>
+          <button onClick={completelyResetGame} className="w-full py-3 bg-gray-200 rounded-xl font-bold text-gray-700 hover:bg-gray-300">トップに戻る</button>
         </div>
       </div>
     )
@@ -479,7 +519,7 @@ export default function Home() {
           </div>
           <div className="mt-16 flex flex-col gap-4 max-w-sm mx-auto">
             <button onClick={() => setShowMethodology(true)} className="text-sm font-bold text-gray-500 hover:text-gray-800 underline underline-offset-4 text-center">開発者の想いとアルゴリズムの裏側を見る</button>
-            <button onClick={resetGame} className="w-full py-5 bg-gray-900 text-white rounded-2xl font-bold text-lg hover:bg-gray-800 active:scale-95 transition-transform shadow-[4px_4px_0_0_rgba(156,163,175,1)]">最初からもう一度遊ぶ</button>
+            <button onClick={completelyResetGame} className="w-full py-5 bg-gray-900 text-white rounded-2xl font-bold text-lg hover:bg-gray-800 active:scale-95 transition-transform shadow-[4px_4px_0_0_rgba(156,163,175,1)]">最初からもう一度遊ぶ</button>
           </div>
         </div>
       </div>

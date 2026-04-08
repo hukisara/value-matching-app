@@ -254,7 +254,7 @@ export default function Home() {
         開発者の想いとアルゴリズム
       </button>
       <div className="flex items-center gap-2 mt-2 opacity-60 hover:opacity-100 transition-opacity">
-        <div className="w-5 h-5 rounded-full overflow-hidden shadow-sm">
+        <div className="w-5 h-5 rounded-full overflow-hidden shadow-sm border border-slate-200">
           <img src="/icon-dt.png" alt="D.T." className="w-full h-full object-cover" />
         </div>
         <p className="text-[10px] font-black text-slate-500 tracking-[0.2em] uppercase">
@@ -269,7 +269,7 @@ export default function Home() {
       <div className="bg-white rounded-[2rem] max-w-lg w-full relative my-8 p-6 sm:p-8 shadow-2xl">
         <button onClick={() => setShowMethodology(false)} className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition-colors">✕</button>
         
-        <div className="text-center mb-6 mt-2">
+        <div className="text-center mb-8 mt-2">
           <div className="w-20 h-20 mx-auto mb-4 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100">
              <img src="/icon-dt.png" alt="Algorithm by D.T." className="w-full h-full object-cover"/>
           </div>
@@ -278,33 +278,35 @@ export default function Home() {
         </div>
 
         <div className="space-y-6 text-sm text-slate-600 leading-relaxed max-h-[50vh] overflow-y-auto pr-3">
-          <div>
-            <p className="font-bold text-slate-800 text-base mb-2">なぜこのアプリを作ったのか？</p>
-            <p>友人同士の集まりや新しいチームで、「なんとなく気が合う」「なんだか合わない」と感じることってありますよね。実はこれ、心理学や統計学で説明できるんです。</p>
-            <p className="mt-2">「価値観が違う＝相性が悪い」とネガティブに捉えられがちですが、本当にそうでしょうか？自分とは真逆の考えを持つ人は、自分にない視点を提供してくれる「最高の相棒」になる可能性を秘めています。</p>
-            <p className="mt-3">みんなの違いを「優劣」ではなく「面白さ」として可視化できたら、もっと会話が弾むんじゃないか。そんな想いでこのアプリを開発しました。</p>
+          <div className="mb-8">
+            <h4 className="font-black text-slate-800 text-lg mb-3">なぜこのアプリを作ったのか？</h4>
+            <div className="space-y-3">
+              <p>友人同士の集まりや新しいチームで、「なんとなく気が合う」「なんだか合わない」と感じることってありませんか？これを言語化しようと思い、心理学や統計学で分析するアプリを作りました。</p>
+              <p>「価値観が違う＝相性が悪い」とネガティブに捉えられがちですが、実は違うと思うんです。</p>
+              <p>自分とは真逆の考えを持つ人は、自分にない視点を提供してくれる<strong className="text-indigo-600">最高のパートナー</strong>になる可能性を秘めています。</p>
+              <p>みんなの違いを「優劣」ではなく「面白さ」として可視化できたら、もっと会話が弾むんじゃないか。そんな想いでこのアプリを開発しました。</p>
+            </div>
           </div>
 
-          <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-            <h4 className="font-bold text-indigo-600 mb-3">💡 診断の裏側（専門的な話）</h4>
-            <ul className="space-y-4">
+          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+            <h4 className="font-bold text-indigo-600 mb-4 flex items-center gap-2">
+              <span className="text-lg">💡</span> 診断の裏側（専門的な話）
+            </h4>
+            <ul className="space-y-5">
               <li>
-                <strong className="text-slate-800 block mb-1">1. 最も価値観が近い2人</strong>
+                <strong className="text-slate-800 block mb-1">1. 価値観が近い2人</strong>
                 単なる「一致数」ではなく、全員の回答を多次元ベクトル（矢印）に見立て、その向きの近さを「コサイン類似度」という計算式で弾き出しています。
               </li>
               <li>
-                <strong className="text-rose-500 block mb-1">2. 最も価値観が遠い2人</strong>
+                <strong className="text-slate-800 block mb-1">2. 価値観が遠い2人</strong>
                 考え方が一番かけ離れているペアです。心理学の「相補性」に基づき、お互いの弱点を補い合える「最強の相互補完ペア」として評価しています。
               </li>
               <li>
-                <strong className="text-amber-500 block mb-1">3. 最も独自路線を行く人</strong>
+                <strong className="text-slate-800 block mb-1">3. 独自路線を行く人</strong>
                 グループ全員の平均値から一番遠い回答をした人です。多数派に流されない、グループに新しい風を吹き込む貴重な存在です。
               </li>
             </ul>
           </div>
-          <p className="mt-8 pb-4 text-xs font-bold text-slate-400 text-center tracking-wider">
-            さあ、結果を見せ合って語り合いましょう！
-          </p>
         </div>
       </div>
     </div>
@@ -314,27 +316,38 @@ export default function Home() {
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">
       <div className="max-w-md w-full mx-auto relative mt-10">
         <div className="mb-10 text-center">
-          <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-rose-500">
+          <h1 className="text-4xl md:text-5xl font-black mb-3 tracking-tight text-slate-800">
             価値観マッチング
           </h1>
-          <p className="text-slate-600 font-bold tracking-wide mb-4">
-            心理学と数学を使った本格相性診断
+          <p className="text-indigo-500 font-bold tracking-widest text-sm mb-8 uppercase">
+            Psychology & Math
           </p>
-          <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-slate-500 text-sm leading-relaxed max-w-sm mx-auto">
-            8つの質問に直感で答えるだけで、グループ内で<strong className="text-indigo-600">「一番気が合う人」</strong>や、自分にない視点を持つ<strong className="text-rose-500">「最高の相棒」</strong>が明らかになります。飲み会やチームの話題作りに！
+          
+          <div className="bg-white/80 backdrop-blur-sm p-6 rounded-[2rem] border border-white shadow-xl shadow-slate-200/40 text-slate-600 text-sm leading-relaxed max-w-sm mx-auto relative">
+            <p>
+              たった8つの質問に直感で答えるだけ。<br/>
+              価値観がシンクロする相手や、自分にない視点をもたらす<span className="font-black text-indigo-600">「最高のパートナー」</span>を見つけ出します。<br/>
+              <span className="block mt-4 font-bold text-slate-800 bg-slate-100 rounded-xl py-2 inline-block px-4">飲み会やチームの話題作りに！</span>
+            </p>
           </div>
         </div>
 
-        <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-xl shadow-slate-200/50 border border-slate-100 mb-6">
-          {errorMsg && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold text-center border border-rose-100">{errorMsg}</div>}
-          <div className="mb-6 text-center">
-            <label className="block text-sm font-bold text-slate-700 mb-3">まずはニックネームを入力</label>
-            <input type="text" placeholder="例：アキラ" value={userName} onChange={(e) => setUserName(e.target.value)}
-              className="w-full p-4 rounded-2xl bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-lg font-medium text-center" maxLength={10} />
+        {/* アイデア2：入力カードのフチにひょっこり乗っかるアイコン */}
+        <div className="relative">
+          <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 w-20 h-20 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100 z-10">
+            <img src="/icon-dt.png" alt="App Mascot" className="w-full h-full object-cover" />
           </div>
-          <button onClick={handleNextToRoomSelect} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">
-            次へ進む
-          </button>
+          <div className="bg-white rounded-[2rem] p-6 sm:p-8 pt-12 shadow-xl shadow-slate-200/50 border border-slate-100 mb-6 relative z-0">
+            {errorMsg && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold text-center border border-rose-100">{errorMsg}</div>}
+            <div className="mb-6 text-center">
+              <label className="block text-sm font-bold text-slate-700 mb-3">まずはニックネームを入力</label>
+              <input type="text" placeholder="例：アキラ" value={userName} onChange={(e) => setUserName(e.target.value)}
+                className="w-full p-4 rounded-2xl bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-lg font-medium text-center" maxLength={10} />
+            </div>
+            <button onClick={handleNextToRoomSelect} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">
+              次へ進む
+            </button>
+          </div>
         </div>
 
         <DeveloperCredit />
@@ -440,11 +453,11 @@ export default function Home() {
               <span className="inline-block bg-white text-indigo-600 border border-indigo-100 text-sm font-bold px-4 py-1.5 rounded-full shadow-sm">{q.dim}</span>
             </div>
             <div className="w-full md:w-1/3 bg-slate-200 rounded-full h-2 overflow-hidden">
-              <div className="bg-gradient-to-r from-indigo-500 to-rose-400 h-full transition-all duration-500 ease-out" style={{ width: `${(currentQIdx / QUESTIONS.length) * 100}%` }} />
+              <div className="bg-indigo-500 h-full transition-all duration-500 ease-out" style={{ width: `${(currentQIdx / QUESTIONS.length) * 100}%` }} />
             </div>
           </div>
           <div className="bg-white rounded-[2rem] p-8 sm:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 mb-8 min-h-[200px] flex items-center justify-center relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-rose-400" />
+            <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500" />
             <h2 className="text-2xl md:text-3xl font-bold text-slate-800 leading-relaxed text-center">{q.text}</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -488,7 +501,7 @@ export default function Home() {
             <p className="text-xs text-slate-600 leading-relaxed">{col.text}</p>
           </div>
           {isHost && allFinished && (
-            <button onClick={triggerCalculation} className="mt-10 w-full py-5 rounded-2xl bg-gradient-to-r from-indigo-600 to-rose-500 text-white font-bold text-xl hover:shadow-lg hover:shadow-rose-200 active:scale-[0.98] transition-all">結果を解析する</button>
+            <button onClick={triggerCalculation} className="mt-10 w-full py-5 rounded-2xl bg-indigo-600 text-white font-bold text-xl hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">結果を解析する</button>
           )}
         </div>
         <ResetButton />
@@ -533,7 +546,7 @@ export default function Home() {
                 <p className="text-sm text-slate-500 mt-2 font-medium">考え方のベクトルが似ているため、一緒にいて自然体でいられる関係です。</p>
               </div>
               <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 text-center relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 to-rose-400" />
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-indigo-500" />
                 <div className="flex items-center justify-center gap-4 mb-8 mt-2">
                   <span className="text-3xl md:text-4xl font-black text-slate-800">{results.best.p1.name.replace('(Bot)', '')}</span>
                   <span className="text-slate-300 text-3xl font-light">×</span>

@@ -54,6 +54,7 @@ export default function Home() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // 初期データフェッチ
   useEffect(() => {
     if (!userId) return
     let mounted = true
@@ -102,11 +103,11 @@ export default function Home() {
     return () => { mounted = false }
   }, [userId]) 
 
+  // リアルタイム通信（即時反映用）
   useEffect(() => {
     if (!userId) return
-    // 修正: チャンネル名にタイムスタンプを入れて完全にユニークにし、通信の競合や切断バグを防ぐ
     const channel = supabase
-      .channel(`sync-${userId}-${Date.now()}`)
+      .channel('public:room_updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, (payload) => {
         setRooms((prev) => {
           if (payload.eventType === 'INSERT') {
@@ -132,6 +133,58 @@ export default function Home() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [userId])
+
+  // ★プロのフェイルセーフ（安全装置）：WebSocketsが途切れても確実に画面を同期する3秒ポーリング
+  useEffect(() => {
+    if (!roomCode) return;
+    let isFetching = false;
+    
+    const syncRoomData = async () => {
+      if (isFetching) return;
+      isFetching = true;
+      try {
+        const { data: roomData } = await supabase.from('rooms').select('*').eq('code', roomCode).single();
+        if (roomData) {
+          setRooms(prev => {
+            const existing = prev.find(r => r.id === roomData.id);
+            if (!existing || existing.status !== roomData.status) {
+              return prev.map(r => r.id === roomData.id ? roomData as Room : r);
+            }
+            return prev;
+          });
+        }
+        
+        const { data: partsData } = await supabase.from('participants').select('*').eq('room_code', roomCode);
+        if (partsData) {
+          setParticipants(prev => {
+            let updated = false;
+            let newParts = [...prev];
+            partsData.forEach(newP => {
+              const idx = newParts.findIndex(p => p.id === newP.id);
+              if (idx === -1) {
+                newParts.push(newP as Participant);
+                updated = true;
+              } else {
+                const currentP = newParts[idx];
+                if (currentP.is_finished !== newP.is_finished || JSON.stringify(currentP.answers) !== JSON.stringify(newP.answers)) {
+                  newParts[idx] = newP as Participant;
+                  updated = true;
+                }
+              }
+            });
+            return updated ? newParts : prev;
+          });
+        }
+      } catch (err) {
+        console.error("Sync error:", err);
+      } finally {
+        isFetching = false;
+      }
+    };
+
+    const intervalId = setInterval(syncRoomData, 3000); // 3秒ごとに強制的に最新状態へ
+    return () => clearInterval(intervalId);
+  }, [roomCode]);
 
   const currentRoom = useMemo(() => rooms.find((r) => r.code === roomCode), [rooms, roomCode])
   const roomParticipants = useMemo(() => participants.filter((p) => p.room_code === roomCode), [participants, roomCode])
@@ -228,6 +281,7 @@ export default function Home() {
       };
     })
     
+    // DBへの挿入とローカルへの即時反映
     const { data, error } = await supabase.from('participants').insert(dummies).select()
     if (!error && data) {
       setParticipants(prev => {
@@ -242,7 +296,7 @@ export default function Home() {
 
   const startGame = useCallback(async () => {
     if (!currentRoom) return
-    // 修正: ボタンを押した瞬間にローカルの画面を切り替える（爆速UX）
+    // ローカルの状態を即座に変更（爆速UX）
     setRooms(prev => prev.map(r => r.id === currentRoom.id ? { ...r, status: 'playing' } : r))
     await supabase.from('rooms').update({ status: 'playing' }).eq('id', currentRoom.id)
   }, [currentRoom])
@@ -253,7 +307,6 @@ export default function Home() {
     if (newAnswers.length < QUESTIONS.length) {
       setCurrentQIdx((idx) => idx + 1)
       if (me) {
-        // ローカルの状態を瞬時に更新
         setParticipants(prev => prev.map(p => p.id === me.id ? { ...p, answers: newAnswers } : p))
         supabase.from('participants').update({ answers: newAnswers }).eq('id', me.id).then()
       }
@@ -268,7 +321,6 @@ export default function Home() {
 
   const triggerCalculation = useCallback(async () => {
     if (!currentRoom) return
-    // 修正: 計算開始もローカルで即座に反映させる
     setRooms(prev => prev.map(r => r.id === currentRoom.id ? { ...r, status: 'calculating' } : r))
     await supabase.from('rooms').update({ status: 'calculating' }).eq('id', currentRoom.id)
   }, [currentRoom])

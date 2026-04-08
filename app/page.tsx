@@ -247,6 +247,23 @@ export default function Home() {
     </div>
   )
 
+  const DeveloperCredit = () => (
+    <div className="text-center mt-8 flex flex-col items-center gap-4 pb-8">
+      <button onClick={() => setShowMethodology(true)} className="text-sm font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center justify-center gap-2 mx-auto">
+        <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs text-white">i</span>
+        開発者の想いとアルゴリズム
+      </button>
+      <div className="flex items-center gap-2 mt-2 opacity-60 hover:opacity-100 transition-opacity">
+        <div className="w-5 h-5 rounded-full overflow-hidden shadow-sm">
+          <img src="/icon-dt.png" alt="D.T." className="w-full h-full object-cover" />
+        </div>
+        <p className="text-[10px] font-black text-slate-500 tracking-[0.2em] uppercase">
+          Algorithm by D.T.
+        </p>
+      </div>
+    </div>
+  )
+
   const MethodologyModal = () => (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
       <div className="bg-white rounded-[2rem] max-w-lg w-full relative my-8 p-6 sm:p-8 shadow-2xl">
@@ -260,23 +277,33 @@ export default function Home() {
           <p className="text-xs font-bold text-indigo-500 mt-2 tracking-widest uppercase">Algorithm by D.T.</p>
         </div>
 
-        <div className="space-y-5 text-sm text-slate-600 leading-relaxed max-h-[50vh] overflow-y-auto pr-3">
-          <p className="font-bold text-slate-800 text-base">「気が合う」という感覚は、科学できる。</p>
-          <p>友人同士の集まりや、新しいチームでの出会いにおいて、「気が合うね」と感じる直感は、実は心理学的・統計学的に裏付け可能な事象です。</p>
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-            <h4 className="font-bold text-indigo-600 mb-1">1. コサイン類似度（Cosine Similarity）</h4>
-            <p>全員の回答を多次元ベクトルに変換し、その「方向性の近さ」を角度として計算します。</p>
+        <div className="space-y-6 text-sm text-slate-600 leading-relaxed max-h-[50vh] overflow-y-auto pr-3">
+          <div>
+            <p className="font-bold text-slate-800 text-base mb-2">なぜこのアプリを作ったのか？</p>
+            <p>友人同士の集まりや新しいチームで、「なんとなく気が合う」「なんだか合わない」と感じることってありますよね。実はこれ、心理学や統計学で説明できるんです。</p>
+            <p className="mt-2">「価値観が違う＝相性が悪い」とネガティブに捉えられがちですが、本当にそうでしょうか？自分とは真逆の考えを持つ人は、自分にない視点を提供してくれる「最高の相棒」になる可能性を秘めています。</p>
+            <p className="mt-3">みんなの違いを「優劣」ではなく「面白さ」として可視化できたら、もっと会話が弾むんじゃないか。そんな想いでこのアプリを開発しました。</p>
           </div>
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-            <h4 className="font-bold text-rose-500 mb-1">2. 相互補完性（Complementarity Theory）</h4>
-            <p>「価値観が真逆＝相性が悪い」とは限りません。異なる特性を持つペアがチームとして強固な関係を築く「相補性」が確認されています。</p>
-          </div>
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-            <h4 className="font-bold text-amber-500 mb-1">3. 情報エントロピーと特異度判定</h4>
-            <p>参加者全員の「価値観の重心（平均値）」を計算し、そこから最も離れている人物を「マイノリティ・レポート」として抽出しています。</p>
+
+          <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+            <h4 className="font-bold text-indigo-600 mb-3">💡 診断の裏側（専門的な話）</h4>
+            <ul className="space-y-4">
+              <li>
+                <strong className="text-slate-800 block mb-1">1. 最も価値観が近い2人</strong>
+                単なる「一致数」ではなく、全員の回答を多次元ベクトル（矢印）に見立て、その向きの近さを「コサイン類似度」という計算式で弾き出しています。
+              </li>
+              <li>
+                <strong className="text-rose-500 block mb-1">2. 最も価値観が遠い2人</strong>
+                考え方が一番かけ離れているペアです。心理学の「相補性」に基づき、お互いの弱点を補い合える「最強の相互補完ペア」として評価しています。
+              </li>
+              <li>
+                <strong className="text-amber-500 block mb-1">3. 最も独自路線を行く人</strong>
+                グループ全員の平均値から一番遠い回答をした人です。多数派に流されない、グループに新しい風を吹き込む貴重な存在です。
+              </li>
+            </ul>
           </div>
           <p className="mt-8 pb-4 text-xs font-bold text-slate-400 text-center tracking-wider">
-            このアプリが、皆様の深い対話のきっかけになれば幸いです。
+            さあ、結果を見せ合って語り合いましょう！
           </p>
         </div>
       </div>
@@ -286,45 +313,31 @@ export default function Home() {
   if (currentView === 'NAME_INPUT') return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">
       <div className="max-w-md w-full mx-auto relative mt-10">
-        <div className="mb-12 text-center">
+        <div className="mb-10 text-center">
           <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-rose-500">
             価値観マッチング
           </h1>
-          <p className="text-slate-600 font-bold tracking-wide mb-3">
+          <p className="text-slate-600 font-bold tracking-wide mb-4">
             心理学と数学を使った本格相性診断
           </p>
-          <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
-            8つの質問から、参加メンバー内の「シンクロ率」「最強の相互補完ペア」「最も独自の感性を持つ人」を導き出します。
-          </p>
-        </div>
-
-        {/* アイデア2：入力カードのフチにひょっこり乗っかるアイコン */}
-        <div className="relative">
-          <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 w-20 h-20 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100 z-10">
-            <img src="/icon-dt.png" alt="App Mascot" className="w-full h-full object-cover" />
-          </div>
-          <div className="bg-white rounded-[2rem] p-6 sm:p-8 pt-12 shadow-xl shadow-slate-200/50 border border-slate-100 mb-6 relative z-0">
-            {errorMsg && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold text-center border border-rose-100">{errorMsg}</div>}
-            <div className="mb-6 text-center">
-              <label className="block text-sm font-bold text-slate-700 mb-3">まずはニックネームを入力</label>
-              <input type="text" placeholder="例：アキラ" value={userName} onChange={(e) => setUserName(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-lg font-medium text-center" maxLength={10} />
-            </div>
-            <button onClick={handleNextToRoomSelect} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">
-              次へ進む
-            </button>
+          <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm text-slate-500 text-sm leading-relaxed max-w-sm mx-auto">
+            8つの質問に直感で答えるだけで、グループ内で<strong className="text-indigo-600">「一番気が合う人」</strong>や、自分にない視点を持つ<strong className="text-rose-500">「最高の相棒」</strong>が明らかになります。飲み会やチームの話題作りに！
           </div>
         </div>
 
-        <div className="text-center mt-8 flex flex-col items-center gap-4">
-          <button onClick={() => setShowMethodology(true)} className="text-sm font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center justify-center gap-2">
-            <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs text-white">i</span>
-            開発者の想いとアルゴリズム
+        <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-xl shadow-slate-200/50 border border-slate-100 mb-6">
+          {errorMsg && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold text-center border border-rose-100">{errorMsg}</div>}
+          <div className="mb-6 text-center">
+            <label className="block text-sm font-bold text-slate-700 mb-3">まずはニックネームを入力</label>
+            <input type="text" placeholder="例：アキラ" value={userName} onChange={(e) => setUserName(e.target.value)}
+              className="w-full p-4 rounded-2xl bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-lg font-medium text-center" maxLength={10} />
+          </div>
+          <button onClick={handleNextToRoomSelect} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">
+            次へ進む
           </button>
-          <p className="text-[10px] font-black text-slate-300 tracking-[0.2em] uppercase mt-4">
-            Algorithm by D.T.
-          </p>
         </div>
+
+        <DeveloperCredit />
       </div>
       {showMethodology && <MethodologyModal />}
     </div>
@@ -343,7 +356,7 @@ export default function Home() {
           {errorMsg && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold text-center border border-rose-100">{errorMsg}</div>}
           <div className="space-y-8">
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">A. 新しく始める（幹事用）</label>
+              <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">新しく始める（幹事用）</label>
               <button onClick={handleCreateRoom} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">新しくルームを作る</button>
             </div>
             <div className="relative py-2">
@@ -351,7 +364,7 @@ export default function Home() {
               <div className="relative flex justify-center"><span className="px-4 bg-white text-xs font-bold tracking-widest text-slate-400 uppercase">OR</span></div>
             </div>
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">B. 招待されたルームに参加</label>
+              <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">招待されたルームに参加</label>
               <div className="flex flex-col sm:flex-row gap-3">
                 <input type="text" placeholder="4桁のパスコード" value={joinCodeInput} onChange={(e) => setJoinCodeInput(e.target.value)}
                   className="flex-1 p-4 rounded-2xl bg-slate-50 text-center text-xl tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-mono text-slate-700" maxLength={4} />
@@ -360,6 +373,7 @@ export default function Home() {
             </div>
           </div>
         </div>
+        <DeveloperCredit />
       </div>
     </div>
   )
@@ -598,17 +612,11 @@ export default function Home() {
             </section>
           </div>
 
-          <div className="mt-16 flex flex-col gap-5 max-w-sm mx-auto">
-            <button onClick={() => setShowMethodology(true)} className="text-sm font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center justify-center gap-2 mx-auto">
-              <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs text-white">i</span>
-              開発者の想いとアルゴリズム
-            </button>
-            <p className="text-[10px] font-black text-slate-300 tracking-[0.2em] uppercase text-center mt-2">
-              Algorithm by D.T.
-            </p>
+          <div className="mt-16 flex flex-col gap-5 max-w-sm mx-auto pb-8">
             <button onClick={completelyResetGame} className="w-full py-5 bg-slate-800 text-white rounded-2xl font-bold text-lg hover:bg-slate-900 active:scale-[0.98] transition-all shadow-lg">最初からもう一度遊ぶ</button>
           </div>
         </div>
+        <DeveloperCredit />
       </div>
     )
   }

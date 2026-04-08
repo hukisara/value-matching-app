@@ -73,12 +73,12 @@ export default function Home() {
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         const myLatestPart = myParts[0]
         
-        // 修正: 過去12時間以内のデータのみを有効とし、古いキャッシュに引っ張られないようにする
+        // 過去12時間以内のデータのみを有効とし、古いキャッシュに引っ張られないようにする
         const isRecent = myLatestPart && (Date.now() - new Date(myLatestPart.created_at).getTime() < 12 * 60 * 60 * 1000)
 
         if (isRecent) {
           const relatedRoom = fetchedRooms.find((r) => r.code === myLatestPart.room_code)
-          // 修正: 過去の部屋がすでに「結果画面」になっていたら復元せず、新規スタートさせる
+          // 過去の部屋がすでに「結果画面」になっていたら復元せず、新規スタートさせる
           if (relatedRoom && relatedRoom.status !== 'result' && relatedRoom.status !== 'finished_completely') {
             setRoomCode(myLatestPart.room_code)
             setUserName(myLatestPart.name)
@@ -258,7 +258,7 @@ export default function Home() {
     }
   }, [])
 
-  // --- ガチ仕様: 2D Map Projection Logic ---
+  // --- ガチ仕様: 2D Map Projection Logic & 称号付与 ---
   const generate2DMapData = useCallback((parts: Participant[]) => {
     // 心理学に基づいた各質問の2次元マッピング重み付け（PCAアプローチ）
     // X軸(社会性/変化): 革新的・アクティブ(+1) vs 保守的・パッシブ(-1)
@@ -285,7 +285,20 @@ export default function Home() {
         y += ans * weights[i].y;
       });
       maxAbs = Math.max(maxAbs, Math.abs(x), Math.abs(y));
-      return { id: p.id, name: p.name, x, y, isMe: p.user_id === userId, labelOffsetY: 0 };
+
+      // 【すげえ機能】X, Yの象限に基づいて自動で称号（キャッチコピー）を付与
+      let title = "";
+      if (x > 0 && y > 0) title = "論理的イノベーター";
+      else if (x > 0 && y <= 0) title = "情熱的チャレンジャー";
+      else if (x <= 0 && y > 0) title = "堅実なる守護者";
+      else title = "心優しきバランサー";
+
+      // 距離が平均より遠ければ「絶対的」などをつける（スパイス）
+      const distance = Math.sqrt(x*x + y*y);
+      if (distance > 3) title = `絶対的・${title}`;
+      else if (distance < 1) title = `マイルドな${title}`;
+
+      return { id: p.id, name: p.name, x, y, title, isMe: p.user_id === userId, labelOffsetY: 0 };
     });
 
     // 値を -100% ~ 100% の範囲に正規化
@@ -638,7 +651,7 @@ export default function Home() {
       </div>
     )
 
-    // 新機能: 2Dマップ用のデータ生成
+    // 新機能: 2Dマップ用のデータ生成（キャッチコピー付き）
     const mapData = generate2DMapData(roomParticipants);
 
     return (
@@ -652,47 +665,7 @@ export default function Home() {
           </div>
           <div className="space-y-10">
 
-            {/* ① 新機能: 価値観分布マップ (2D Scatter Plot) */}
-            <section>
-              <div className="mb-4 text-center">
-                <h3 className="font-black text-slate-800 text-2xl tracking-tight">価値観分布マップ</h3>
-                <p className="text-sm text-slate-500 mt-2 font-medium">8次元のデータを2次元に圧縮。近い人ほど価値観が似ています。</p>
-              </div>
-              <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 relative">
-                <div className="relative w-full aspect-square max-w-md mx-auto bg-slate-50/50 rounded-xl border border-slate-200 overflow-hidden">
-                  {/* Grid lines & Labels */}
-                  <div className="absolute top-1/2 left-0 w-full h-px bg-slate-200" />
-                  <div className="absolute top-0 left-1/2 w-px h-full bg-slate-200" />
-                  <div className="absolute top-1/2 left-1/2 w-full h-full border border-slate-100 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
-                  <div className="absolute top-1/2 left-1/2 w-1/2 h-1/2 border border-slate-100 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
-                  
-                  {/* 学術的に妥当な軸ラベルに変更 */}
-                  <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">規律・論理的</div>
-                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">柔軟・共感的</div>
-                  <div className="absolute top-1/2 left-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">保守・パッシブ</div>
-                  <div className="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">革新・アクティブ</div>
-
-                  {/* Scatter Points */}
-                  {mapData.map(p => (
-                    <div
-                      key={p.id}
-                      className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-1000 ease-out"
-                      style={{ left: `${50 + p.nx * 0.4}%`, top: `${50 - p.ny * 0.4}%` }}
-                    >
-                      <div className={`rounded-full border-2 shadow-sm ${p.isMe ? 'bg-indigo-500 border-white w-5 h-5 z-20 ring-2 ring-indigo-200' : 'bg-emerald-400 border-white w-4 h-4 z-10'}`} />
-                      {/* 重なり回避のためにY軸方向に動的にずらす */}
-                      <span 
-                        className={`text-[10px] font-bold mt-1 px-2 py-0.5 rounded shadow-sm whitespace-nowrap absolute ${p.isMe ? 'bg-indigo-600 text-white z-20' : 'bg-white text-slate-600 z-10'}`}
-                        style={{ top: `${16 + p.labelOffsetY}px` }}
-                      >
-                        {p.name.replace('(Bot)', '')}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-
+            {/* 結果1: ベストペア（マップより先に持ってきて盛り上げる） */}
             <section>
               <div className="mb-4 text-center">
                 <h3 className="font-black text-slate-800 text-2xl tracking-tight">最も価値観が近い2人</h3>
@@ -740,15 +713,64 @@ export default function Home() {
               </section>
             </div>
 
+            {/* ② 新機能: 価値観分布マップ (ベストペア発表のあとに配置して理由付けする) */}
+            <section className="pt-8 border-t-2 border-dashed border-slate-200">
+              <div className="mb-4 text-center">
+                <h3 className="font-black text-slate-800 text-2xl tracking-tight">価値観分布マップ</h3>
+                <p className="text-sm text-slate-500 mt-2 font-medium">8次元のデータを2次元に圧縮。近い人ほど価値観が似ています。</p>
+              </div>
+              <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 relative">
+                <div className="relative w-full aspect-square max-w-md mx-auto bg-slate-50/50 rounded-xl border border-slate-200 overflow-hidden">
+                  {/* Grid lines & Labels */}
+                  <div className="absolute top-1/2 left-0 w-full h-px bg-slate-200" />
+                  <div className="absolute top-0 left-1/2 w-px h-full bg-slate-200" />
+                  <div className="absolute top-1/2 left-1/2 w-full h-full border border-slate-100 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
+                  <div className="absolute top-1/2 left-1/2 w-1/2 h-1/2 border border-slate-100 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
+                  
+                  <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">規律・論理的</div>
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">柔軟・共感的</div>
+                  <div className="absolute top-1/2 left-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">保守・パッシブ</div>
+                  <div className="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">革新・アクティブ</div>
+
+                  {/* Scatter Points */}
+                  {mapData.map(p => (
+                    <div
+                      key={p.id}
+                      className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-1000 ease-out"
+                      style={{ left: `${50 + p.nx * 0.4}%`, top: `${50 - p.ny * 0.4}%` }}
+                    >
+                      <div className={`rounded-full border-2 shadow-sm ${p.isMe ? 'bg-indigo-500 border-white w-5 h-5 z-20 ring-2 ring-indigo-200' : 'bg-emerald-400 border-white w-4 h-4 z-10'}`} />
+                      <span 
+                        className={`text-[10px] font-bold mt-1 px-2 py-0.5 rounded shadow-sm whitespace-nowrap absolute ${p.isMe ? 'bg-indigo-600 text-white z-20' : 'bg-white text-slate-600 z-10'}`}
+                        style={{ top: `${16 + p.labelOffsetY}px` }}
+                      >
+                        {p.name.replace('(Bot)', '')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
             <section>
               <h3 className="text-lg font-black text-slate-800 border-b-2 border-slate-200 pb-3 mb-5 mt-4">参加者ごとのベストマッチ</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {results.personalBests.map((pb, i) => (
-                  <div key={i} className="flex justify-between items-center p-5 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                    <div className="font-bold text-slate-700 text-sm">{pb.me.name.replace('(Bot)', '')} <span className="text-slate-400 font-medium text-xs mx-2">の相手</span> <span className="text-slate-900">{pb.partner.name.replace('(Bot)', '')}</span></div>
-                    <div className="text-sm font-black text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">{pb.percent}%</div>
-                  </div>
-                ))}
+                {results.personalBests.map((pb, i) => {
+                   // mapDataから称号（キャッチコピー）を取得
+                   const personData = mapData.find(m => m.id === pb.me.id);
+                   const title = personData ? personData.title : "";
+                   
+                   return (
+                    <div key={i} className="flex flex-col p-5 bg-white rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400"></div>
+                      <span className="text-[10px] font-black text-indigo-500 mb-1 ml-2">{title}</span>
+                      <div className="flex justify-between items-center ml-2">
+                        <div className="font-bold text-slate-700 text-sm">{pb.me.name.replace('(Bot)', '')} <span className="text-slate-400 font-medium text-xs mx-2">の相手</span> <span className="text-slate-900 text-base">{pb.partner.name.replace('(Bot)', '')}</span></div>
+                        <div className="text-sm font-black text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">{pb.percent}%</div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </section>
 

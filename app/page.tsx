@@ -132,7 +132,6 @@ export default function Home() {
   const handleCreateRoom = useCallback(async () => {
     const code = Math.floor(1000 + Math.random() * 9000).toString()
     try {
-      // 登録成功時にデータを取得して直接Stateに入れる（表示ラグのバグ解消）
       const { data: roomData, error: roomError } = await supabase.from('rooms').insert({ code, status: 'waiting', host_id: userId! }).select().single()
       if (roomError) throw roomError
       
@@ -239,7 +238,6 @@ export default function Home() {
         <button onClick={() => setShowMethodology(false)} className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition-colors">✕</button>
         
         <div className="text-center mb-6 mt-2">
-          {/* public/icon-dt.jpg を読み込む */}
           <div className="w-20 h-20 mx-auto mb-4 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100">
              <img src="/icon-dt.jpg" alt="Developer" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/150?text=Dog' }} />
           </div>
@@ -269,8 +267,6 @@ export default function Home() {
     </div>
   )
 
-  // --- Views ---
-  
   if (currentView === 'NAME_INPUT') return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">
       <div className="max-w-md w-full mx-auto">
@@ -464,7 +460,7 @@ export default function Home() {
     if (!results) return (
       <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center">
         <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200 text-center max-w-md w-full mx-4">
-          <p className="mb-6 font-bold text-slate-600">計算に必要なデータが足りません。</p>
+          <p className="mb-6 font-bold text-gray-600">計算に必要なデータが足りません。</p>
           <button onClick={completelyResetGame} className="w-full py-4 bg-slate-100 rounded-2xl font-bold text-slate-600 hover:bg-slate-200">トップに戻る</button>
         </div>
       </div>
@@ -577,15 +573,3 @@ export default function Home() {
 
   return null
 }
-```
-
----
-
-### 2. GitHubにプッシュするためのコマンド
-
-VS Codeのターミナルを開き（ショートカット：`Ctrl` + `@`）、以下の3行を順番に入力してエンターを押してください。
-
-```bash
-git add .
-git commit -m "fix: ルーム作成時の参加者表示バグの修正、UIの洗練化、開発者アイコンの追加"
-git push origin main

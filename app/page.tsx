@@ -54,7 +54,6 @@ export default function Home() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // 修正: 初期データ読み込みとリアルタイム通信を分離してバグを解消
   useEffect(() => {
     if (!userId) return
     let mounted = true
@@ -101,13 +100,13 @@ export default function Home() {
     }
     fetchInitial()
     return () => { mounted = false }
-  }, [userId]) // isRestoringを依存配列から除外し、不要な再読み込みを防ぐ
+  }, [userId]) 
 
-  // リアルタイム通信専用のリスナー（安定化）
   useEffect(() => {
     if (!userId) return
+    // 修正: チャンネルを全員共通の 'app-realtime' に戻すことで、他人の入室や更新を確実にキャッチする
     const channel = supabase
-      .channel(`realtime-updates-${userId}`)
+      .channel('app-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, (payload) => {
         setRooms((prev) => {
           if (payload.eventType === 'INSERT') {
@@ -228,7 +227,18 @@ export default function Home() {
         is_finished: true,
       };
     })
-    await supabase.from('participants').insert(dummies)
+    
+    // 修正: 挿入したデータをすぐにローカルに反映させる（爆速UX）
+    const { data, error } = await supabase.from('participants').insert(dummies).select()
+    if (!error && data) {
+      setParticipants(prev => {
+        const newParts = [...prev];
+        data.forEach(d => {
+          if (!newParts.some(p => p.id === d.id)) newParts.push(d as Participant);
+        });
+        return newParts;
+      });
+    }
   }, [currentRoom])
 
   const startGame = useCallback(async () => {
@@ -352,26 +362,48 @@ export default function Home() {
       if (distance > 3) title = `絶対的・${title}`;
       else if (distance < 1) title = `マイルドな${title}`;
 
-      return { id: p.id, name: p.name, x, y, title, isMe: p.user_id === userId, labelOffsetY: 0 };
+      return { id: p.id, name: p.name, x, y, title, isMe: p.user_id === userId, labelOffsetY: 18 };
     });
 
+    // 物理シミュレーションによる重なり回避（斥力モデル）
     mapped = mapped.map(p => ({
       ...p,
-      nx: (p.x / maxAbs) * 100, 
-      ny: (p.y / maxAbs) * 100
+      // ランダムな揺らぎ（ジッター）を入れて、完全に一致した人が完全に重なるのを防ぐ
+      nx: (p.x / maxAbs) * 100 + (Math.random() - 0.5) * 8, 
+      ny: (p.y / maxAbs) * 100 + (Math.random() - 0.5) * 8
     }));
 
-    for (let i = 0; i < mapped.length; i++) {
-      for (let j = i + 1; j < mapped.length; j++) {
-        const dx = mapped[i].nx - mapped[j].nx;
-        const dy = mapped[i].ny - mapped[j].ny;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 15) {
-          mapped[i].labelOffsetY -= 12;
-          mapped[j].labelOffsetY += 12;
+    // 反発アルゴリズム（近い点同士を弾き離す）
+    for (let iter = 0; iter < 30; iter++) {
+      for (let i = 0; i < mapped.length; i++) {
+        for (let j = i + 1; j < mapped.length; j++) {
+          const dx = mapped[i].nx - mapped[j].nx;
+          const dy = mapped[i].ny - mapped[j].ny;
+          let dist = Math.sqrt(dx * dx + dy * dy);
+          
+          if (dist === 0) {
+            mapped[i].nx += 1;
+            dist = 1;
+          }
+          
+          // 距離が20%以内なら反発させる
+          const minDist = 20;
+          if (dist < minDist) {
+            const force = (minDist - dist) / dist * 0.4;
+            mapped[i].nx += dx * force;
+            mapped[i].ny += dy * force;
+            mapped[j].nx -= dx * force;
+            mapped[j].ny -= dy * force;
+          }
         }
       }
     }
+
+    // 枠外にはみ出さないようにガード
+    mapped.forEach(p => {
+      p.nx = Math.max(-85, Math.min(85, p.nx));
+      p.ny = Math.max(-85, Math.min(85, p.ny));
+    });
 
     return mapped;
   }, [userId]);
@@ -828,8 +860,8 @@ export default function Home() {
                     >
                       <div className={`rounded-full border-2 shadow-sm ${p.isMe ? 'bg-indigo-500 border-white w-5 h-5 z-20 ring-2 ring-indigo-200' : 'bg-emerald-400 border-white w-4 h-4 z-10'}`} />
                       <span 
-                        className={`text-[10px] font-bold mt-1 px-2 py-0.5 rounded shadow-sm whitespace-nowrap absolute ${p.isMe ? 'bg-indigo-600 text-white z-20' : 'bg-white text-slate-600 z-10'}`}
-                        style={{ top: `${16 + p.labelOffsetY}px` }}
+                        className={`text-[10px] font-bold mt-1 px-2 py-0.5 rounded shadow-sm whitespace-nowrap absolute border ${p.isMe ? 'bg-indigo-600 text-white border-indigo-500 z-30' : 'bg-white/95 backdrop-blur-sm text-slate-700 border-slate-200 z-20'}`}
+                        style={{ top: `${p.labelOffsetY}px` }}
                       >
                         {p.name.replace('(Bot)', '')}
                       </span>
@@ -894,20 +926,20 @@ export default function Home() {
                   const stats = results.questionStats[idx]
                   return (
                     <div key={idx} className="border-b border-slate-100 pb-8 last:border-0 last:pb-0">
-                      <p className="text-sm font-bold text-slate-800 mb-5 leading-relaxed">{q.text}</p>
+                      <p className="text-sm font-bold text-slate-800 mb-4 leading-relaxed">{q.text}</p>
                       
-                      <div className="flex flex-col gap-3 mb-4">
-                        <div className="flex justify-between items-start text-xs">
-                          <span className="w-4/5 pr-3 text-slate-600 font-bold leading-relaxed">{q.a}</span>
-                          <span className="font-black text-indigo-500 text-sm">{stats.aPercent}%</span>
+                      <div className="flex flex-col gap-2 mb-4">
+                        <div className="flex justify-between items-center text-xs bg-indigo-50/50 p-2 rounded-lg">
+                          <span className="w-4/5 pr-3 text-slate-700 font-medium leading-snug">{q.a}</span>
+                          <span className="font-black text-indigo-600 text-sm">{stats.aPercent}%</span>
                         </div>
-                        <div className="flex justify-between items-start text-xs">
-                          <span className="w-4/5 pr-3 text-slate-600 font-bold leading-relaxed">{q.b}</span>
-                          <span className="font-black text-rose-400 text-sm">{stats.bPercent}%</span>
+                        <div className="flex justify-between items-center text-xs bg-rose-50/50 p-2 rounded-lg">
+                          <span className="w-4/5 pr-3 text-slate-700 font-medium leading-snug">{q.b}</span>
+                          <span className="font-black text-rose-500 text-sm">{stats.bPercent}%</span>
                         </div>
                       </div>
 
-                      <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex">
+                      <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
                         <div style={{ width: `${stats.aPercent}%` }} className="bg-indigo-500 h-full transition-all duration-1000" />
                         <div style={{ width: `${stats.bPercent}%` }} className="bg-rose-400 h-full transition-all duration-1000" />
                       </div>

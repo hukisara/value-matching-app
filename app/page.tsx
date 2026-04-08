@@ -85,7 +85,11 @@ export default function Home() {
       .channel('app-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, (payload) => {
         setRooms((prev) => {
-          if (payload.eventType === 'INSERT') return [...prev, payload.new as Room]
+          if (payload.eventType === 'INSERT') {
+            // 重複追加を防ぐ処理
+            if (prev.some(r => r.id === (payload.new as Room).id)) return prev;
+            return [...prev, payload.new as Room]
+          }
           if (payload.eventType === 'UPDATE') return prev.map((r) => r.id === (payload.new as Room).id ? payload.new as Room : r)
           if (payload.eventType === 'DELETE') return prev.filter((r) => r.id !== (payload.old as Room).id)
           return prev
@@ -93,7 +97,11 @@ export default function Home() {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, (payload) => {
         setParticipants((prev) => {
-          if (payload.eventType === 'INSERT') return [...prev, payload.new as Participant]
+          if (payload.eventType === 'INSERT') {
+            // 重複追加を防ぐ処理（分身バグの解消）
+            if (prev.some(p => p.id === (payload.new as Participant).id)) return prev;
+            return [...prev, payload.new as Participant]
+          }
           if (payload.eventType === 'UPDATE') return prev.map((p) => p.id === (payload.new as Participant).id ? payload.new as Participant : p)
           if (payload.eventType === 'DELETE') return prev.filter((p) => p.id !== (payload.old as Participant).id)
           return prev
@@ -138,8 +146,15 @@ export default function Home() {
       const { data: partData, error: partError } = await supabase.from('participants').insert({ user_id: userId!, room_code: code, name: userName, answers: [], is_finished: false }).select().single()
       if (partError) throw partError
 
-      setRooms(prev => [...prev, roomData as Room])
-      setParticipants(prev => [...prev, partData as Participant])
+      // 手動でローカルステートに追加（重複チェックが導入されたため安全）
+      setRooms(prev => {
+        if (prev.some(r => r.id === roomData.id)) return prev;
+        return [...prev, roomData as Room];
+      })
+      setParticipants(prev => {
+        if (prev.some(p => p.id === partData.id)) return prev;
+        return [...prev, partData as Participant];
+      })
 
       setRoomCode(code); setIsHost(true); setCurrentView('LOBBY'); setErrorMsg('')
     } catch (err) { 
@@ -158,7 +173,10 @@ export default function Home() {
       if (!existing) {
         const { data: partData, error } = await supabase.from('participants').insert({ user_id: userId!, room_code: joinCodeInput, name: userName, answers: [], is_finished: false }).select().single()
         if (error) throw error
-        setParticipants(prev => [...prev, partData as Participant])
+        setParticipants(prev => {
+          if (prev.some(p => p.id === partData.id)) return prev;
+          return [...prev, partData as Participant];
+        })
       }
       setRoomCode(joinCodeInput); setIsHost(false); setCurrentView('LOBBY'); setErrorMsg('')
     } catch { setErrorMsg('通信エラーが発生しました。') }
@@ -238,18 +256,16 @@ export default function Home() {
         <button onClick={() => setShowMethodology(false)} className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition-colors">✕</button>
         
         <div className="text-center mb-6 mt-2">
+          {/* 画像読み込みを極力シンプルにしました */}
           <div className="w-20 h-20 mx-auto mb-4 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100">
-             {/* 拡張子を .png に修正しました */}
              <img 
                src="/icon-dt.png" 
-               alt="Developer" 
-               className="w-full h-full object-cover" 
-               onError={(e) => { 
-                 e.currentTarget.src = 'https://via.placeholder.com/150?text=Developer' 
-               }} 
+               alt="Algorithm by D.T." 
+               className="w-full h-full object-cover"
              />
           </div>
           <h3 className="text-2xl font-black text-slate-800 tracking-tight">開発者の想いと裏側</h3>
+          <p className="text-xs font-bold text-indigo-500 mt-2 tracking-widest uppercase">Algorithm by D.T.</p>
         </div>
 
         <div className="space-y-5 text-sm text-slate-600 leading-relaxed max-h-[50vh] overflow-y-auto pr-3">
@@ -277,29 +293,37 @@ export default function Home() {
 
   if (currentView === 'NAME_INPUT') return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">
-      <div className="max-w-md w-full mx-auto">
+      <div className="max-w-md w-full mx-auto relative">
         <div className="mb-10 text-center">
-          <h1 className="text-4xl md:text-5xl font-black mb-3 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-rose-500">
+          <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-rose-500">
             価値観マッチング
           </h1>
-          <p className="text-slate-500 font-medium tracking-wide">直感で答える、理論に基づく相性診断</p>
+          <p className="text-slate-600 font-bold tracking-wide mb-3">
+            心理学と数学を使った本格相性診断
+          </p>
+          <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+            8つの質問から、参加メンバー内の「シンクロ率」「最強の相互補完ペア」「最も独自の感性を持つ人」を導き出します。
+          </p>
         </div>
         <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-xl shadow-slate-200/50 border border-slate-100 mb-6">
           {errorMsg && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold text-center border border-rose-100">{errorMsg}</div>}
           <div className="mb-6">
             <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">まずはニックネームを入力</label>
-            <input type="text" placeholder="例：たろう" value={userName} onChange={(e) => setUserName(e.target.value)}
+            <input type="text" placeholder="例：アキラ" value={userName} onChange={(e) => setUserName(e.target.value)}
               className="w-full p-4 rounded-2xl bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-lg font-medium" maxLength={10} />
           </div>
           <button onClick={handleNextToRoomSelect} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">
             次へ進む
           </button>
         </div>
-        <div className="text-center mt-8">
-          <button onClick={() => setShowMethodology(true)} className="text-sm font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center justify-center gap-2 mx-auto">
+        <div className="text-center mt-8 flex flex-col items-center gap-4">
+          <button onClick={() => setShowMethodology(true)} className="text-sm font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center justify-center gap-2">
             <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs text-white">i</span>
             開発者の想いとアルゴリズム
           </button>
+          <p className="text-[10px] font-black text-slate-300 tracking-[0.2em] uppercase mt-4">
+            Algorithm by D.T.
+          </p>
         </div>
       </div>
       {showMethodology && <MethodologyModal />}
@@ -572,6 +596,9 @@ export default function Home() {
               <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs text-white">i</span>
               開発者の想いとアルゴリズム
             </button>
+            <p className="text-[10px] font-black text-slate-300 tracking-[0.2em] uppercase text-center mt-2">
+              Algorithm by D.T.
+            </p>
             <button onClick={completelyResetGame} className="w-full py-5 bg-slate-800 text-white rounded-2xl font-bold text-lg hover:bg-slate-900 active:scale-[0.98] transition-all shadow-lg">最初からもう一度遊ぶ</button>
           </div>
         </div>

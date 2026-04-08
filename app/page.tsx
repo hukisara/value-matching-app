@@ -248,12 +248,12 @@ export default function Home() {
   )
 
   const DeveloperCredit = () => (
-    <div className="text-center mt-8 flex flex-col items-center gap-4 pb-8">
+    <div className="text-center mt-10 flex flex-col items-center gap-3 pb-8">
       <button onClick={() => setShowMethodology(true)} className="text-sm font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center justify-center gap-2 mx-auto">
         <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs text-white">i</span>
         開発者の想いとアルゴリズム
       </button>
-      <div className="flex items-center gap-2 mt-2 opacity-60 hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-2 mt-3 opacity-70 hover:opacity-100 transition-opacity">
         <div className="w-5 h-5 rounded-full overflow-hidden shadow-sm border border-slate-200">
           <img src="/icon-dt.png" alt="D.T." className="w-full h-full object-cover" />
         </div>
@@ -314,40 +314,35 @@ export default function Home() {
 
   if (currentView === 'NAME_INPUT') return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">
-      <div className="max-w-md w-full mx-auto relative mt-10">
-        <div className="mb-10 text-center">
-          <h1 className="text-4xl md:text-5xl font-black mb-3 tracking-tight text-slate-800">
-            価値観マッチング
-          </h1>
-          <p className="text-indigo-500 font-bold tracking-widest text-sm mb-8 uppercase">
+      <div className="max-w-md w-full mx-auto relative mt-4">
+        <div className="mb-12 text-center">
+          <p className="text-indigo-500 font-bold tracking-[0.2em] text-xs mb-3 uppercase">
             Psychology & Math
           </p>
+          <h1 className="text-4xl md:text-5xl font-black mb-6 tracking-tight text-slate-900">
+            価値観マッチング
+          </h1>
           
-          <div className="bg-white/80 backdrop-blur-sm p-6 rounded-[2rem] border border-white shadow-xl shadow-slate-200/40 text-slate-600 text-sm leading-relaxed max-w-sm mx-auto relative">
+          <div className="text-slate-500 text-sm leading-relaxed max-w-sm mx-auto font-medium">
+            <p className="mb-2">たった8つの質問に直感で答えるだけ。</p>
             <p>
-              たった8つの質問に直感で答えるだけ。<br/>
-              価値観がシンクロする相手や、自分にない視点をもたらす<span className="font-black text-indigo-600">「最高のパートナー」</span>を見つけ出します。<br/>
-              <span className="block mt-4 font-bold text-slate-800 bg-slate-100 rounded-xl py-2 inline-block px-4">飲み会やチームの話題作りに！</span>
+              グループ内で最も<strong className="text-slate-700">価値観が近い相手</strong>や、<br/>
+              自分にない視点をもたらす<strong className="text-indigo-600">「最高のパートナー」</strong>を<br/>
+              見つけ出します。
             </p>
           </div>
         </div>
 
-        {/* アイデア2：入力カードのフチにひょっこり乗っかるアイコン */}
-        <div className="relative">
-          <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 w-20 h-20 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100 z-10">
-            <img src="/icon-dt.png" alt="App Mascot" className="w-full h-full object-cover" />
+        <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-xl shadow-slate-200/40 border border-slate-100 mb-8">
+          {errorMsg && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold text-center border border-rose-100">{errorMsg}</div>}
+          <div className="mb-8 text-center">
+            <label className="block text-sm font-bold text-slate-700 mb-3">ニックネームを入力して開始</label>
+            <input type="text" placeholder="例：アキラ" value={userName} onChange={(e) => setUserName(e.target.value)}
+              className="w-full p-4 rounded-2xl bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all text-lg font-bold text-center border border-slate-100" maxLength={10} />
           </div>
-          <div className="bg-white rounded-[2rem] p-6 sm:p-8 pt-12 shadow-xl shadow-slate-200/50 border border-slate-100 mb-6 relative z-0">
-            {errorMsg && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold text-center border border-rose-100">{errorMsg}</div>}
-            <div className="mb-6 text-center">
-              <label className="block text-sm font-bold text-slate-700 mb-3">まずはニックネームを入力</label>
-              <input type="text" placeholder="例：アキラ" value={userName} onChange={(e) => setUserName(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-lg font-medium text-center" maxLength={10} />
-            </div>
-            <button onClick={handleNextToRoomSelect} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">
-              次へ進む
-            </button>
-          </div>
+          <button onClick={handleNextToRoomSelect} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 active:scale-[0.98] transition-all shadow-md shadow-indigo-200">
+            次へ進む
+          </button>
         </div>
 
         <DeveloperCredit />

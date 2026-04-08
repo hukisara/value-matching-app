@@ -86,7 +86,6 @@ export default function Home() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, (payload) => {
         setRooms((prev) => {
           if (payload.eventType === 'INSERT') {
-            // 重複追加を防ぐ処理
             if (prev.some(r => r.id === (payload.new as Room).id)) return prev;
             return [...prev, payload.new as Room]
           }
@@ -98,7 +97,6 @@ export default function Home() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, (payload) => {
         setParticipants((prev) => {
           if (payload.eventType === 'INSERT') {
-            // 重複追加を防ぐ処理（分身バグの解消）
             if (prev.some(p => p.id === (payload.new as Participant).id)) return prev;
             return [...prev, payload.new as Participant]
           }
@@ -146,7 +144,6 @@ export default function Home() {
       const { data: partData, error: partError } = await supabase.from('participants').insert({ user_id: userId!, room_code: code, name: userName, answers: [], is_finished: false }).select().single()
       if (partError) throw partError
 
-      // 手動でローカルステートに追加（重複チェックが導入されたため安全）
       setRooms(prev => {
         if (prev.some(r => r.id === roomData.id)) return prev;
         return [...prev, roomData as Room];
@@ -256,13 +253,8 @@ export default function Home() {
         <button onClick={() => setShowMethodology(false)} className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition-colors">✕</button>
         
         <div className="text-center mb-6 mt-2">
-          {/* 画像読み込みを極力シンプルにしました */}
           <div className="w-20 h-20 mx-auto mb-4 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100">
-             <img 
-               src="/icon-dt.png" 
-               alt="Algorithm by D.T." 
-               className="w-full h-full object-cover"
-             />
+             <img src="/icon-dt.png" alt="Algorithm by D.T." className="w-full h-full object-cover"/>
           </div>
           <h3 className="text-2xl font-black text-slate-800 tracking-tight">開発者の想いと裏側</h3>
           <p className="text-xs font-bold text-indigo-500 mt-2 tracking-widest uppercase">Algorithm by D.T.</p>
@@ -293,8 +285,8 @@ export default function Home() {
 
   if (currentView === 'NAME_INPUT') return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">
-      <div className="max-w-md w-full mx-auto relative">
-        <div className="mb-10 text-center">
+      <div className="max-w-md w-full mx-auto relative mt-10">
+        <div className="mb-12 text-center">
           <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-rose-500">
             価値観マッチング
           </h1>
@@ -305,17 +297,25 @@ export default function Home() {
             8つの質問から、参加メンバー内の「シンクロ率」「最強の相互補完ペア」「最も独自の感性を持つ人」を導き出します。
           </p>
         </div>
-        <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-xl shadow-slate-200/50 border border-slate-100 mb-6">
-          {errorMsg && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold text-center border border-rose-100">{errorMsg}</div>}
-          <div className="mb-6">
-            <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">まずはニックネームを入力</label>
-            <input type="text" placeholder="例：アキラ" value={userName} onChange={(e) => setUserName(e.target.value)}
-              className="w-full p-4 rounded-2xl bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-lg font-medium" maxLength={10} />
+
+        {/* アイデア2：入力カードのフチにひょっこり乗っかるアイコン */}
+        <div className="relative">
+          <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 w-20 h-20 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100 z-10">
+            <img src="/icon-dt.png" alt="App Mascot" className="w-full h-full object-cover" />
           </div>
-          <button onClick={handleNextToRoomSelect} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">
-            次へ進む
-          </button>
+          <div className="bg-white rounded-[2rem] p-6 sm:p-8 pt-12 shadow-xl shadow-slate-200/50 border border-slate-100 mb-6 relative z-0">
+            {errorMsg && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold text-center border border-rose-100">{errorMsg}</div>}
+            <div className="mb-6 text-center">
+              <label className="block text-sm font-bold text-slate-700 mb-3">まずはニックネームを入力</label>
+              <input type="text" placeholder="例：アキラ" value={userName} onChange={(e) => setUserName(e.target.value)}
+                className="w-full p-4 rounded-2xl bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-lg font-medium text-center" maxLength={10} />
+            </div>
+            <button onClick={handleNextToRoomSelect} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">
+              次へ進む
+            </button>
+          </div>
         </div>
+
         <div className="text-center mt-8 flex flex-col items-center gap-4">
           <button onClick={() => setShowMethodology(true)} className="text-sm font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center justify-center gap-2">
             <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs text-white">i</span>
@@ -386,7 +386,14 @@ export default function Home() {
           <ul className="space-y-3 mb-2">
             {roomParticipants.map((p) => (
               <li key={p.id} className="flex items-center text-slate-700 font-bold p-3 bg-slate-50 rounded-2xl">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 mr-3 shadow-sm" />{p.name}
+                {p.user_id === userId ? (
+                  <div className="w-6 h-6 rounded-full border-2 border-white shadow-sm overflow-hidden bg-slate-100 mr-3 relative">
+                     <img src="/icon-dt.png" alt="Me" className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 mr-3 shadow-sm mx-1.5" />
+                )}
+                {p.name}
                 {p.user_id === userId && <span className="ml-auto text-[10px] font-black text-indigo-600 bg-indigo-100 px-2 py-1 rounded-md uppercase tracking-wider">You</span>}
               </li>
             ))}

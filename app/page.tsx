@@ -290,20 +290,20 @@ export default function Home() {
 
           <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
             <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <span className="text-lg">💡</span> 診断の裏側（専門的な話）
+              <span className="text-lg">💡</span> 心理学とアルゴリズムの裏側
             </h4>
             <ul className="space-y-5">
               <li>
-                <strong className="text-slate-800 block mb-1">1. 価値観が近い2人</strong>
+                <strong className="text-slate-800 block mb-1">1. 心理学ベースの設問設計</strong>
+                世界的に信頼されている性格分析「ビッグファイブ」や、パートナー関係の長続きを説く「コンフリクト理論」などをベースに質問を構成しています。
+              </li>
+              <li>
+                <strong className="text-slate-800 block mb-1">2. 価値観が近い2人</strong>
                 単なる「一致数」ではなく、全員の回答を多次元ベクトル（矢印）に見立て、その向きの近さを「コサイン類似度」という計算式で弾き出しています。
               </li>
               <li>
-                <strong className="text-slate-800 block mb-1">2. 価値観が遠い2人</strong>
+                <strong className="text-slate-800 block mb-1">3. 価値観が遠い2人</strong>
                 考え方が一番かけ離れているペアです。心理学の「相補性」に基づき、お互いの弱点を補い合える「最強の相互補完ペア」として評価しています。
-              </li>
-              <li>
-                <strong className="text-slate-800 block mb-1">3. 独自路線を行く人</strong>
-                グループ全員の平均値から一番遠い回答をした人です。多数派に流されない、グループに新しい風を吹き込む貴重な存在です。
               </li>
             </ul>
           </div>
@@ -550,7 +550,7 @@ export default function Home() {
                   <span className="text-3xl md:text-4xl font-black text-slate-800">{results.best.p2.name.replace('(Bot)', '')}</span>
                 </div>
                 <div className="inline-flex items-baseline bg-slate-50 px-8 py-4 rounded-[2rem] border border-slate-100">
-                  <span className="text-sm font-black text-slate-400 mr-5 uppercase tracking-wider">Sync</span>
+                  <span className="text-sm font-black text-slate-400 mr-5 uppercase tracking-wider">MATCH</span>
                   <span className="text-6xl font-black text-slate-800 tracking-tighter">{results.best.percent}</span>
                   <span className="text-2xl font-bold text-slate-400 ml-1">%</span>
                 </div>
@@ -601,19 +601,28 @@ export default function Home() {
                 <h3 className="font-black text-slate-800 text-2xl tracking-tight">グループの回答分布</h3>
                 <p className="text-sm text-slate-500 mt-2 font-medium">みんながどちらの回答を選んだかの割合データです。</p>
               </div>
-              <div className="bg-white rounded-[2rem] p-6 sm:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 space-y-8">
+              <div className="bg-white rounded-[2rem] p-6 sm:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 space-y-10">
                 {QUESTIONS.map((q, idx) => {
                   const stats = results.questionStats[idx]
                   return (
-                    <div key={idx}>
-                      <p className="text-sm font-bold text-slate-800 mb-4 leading-relaxed">{q.text}</p>
-                      <div className="flex justify-between text-xs font-black text-slate-500 mb-3 px-1">
-                        <span>{q.a} <span className="text-slate-800">({stats.aPercent}%)</span></span>
-                        <span><span className="text-slate-800">({stats.bPercent}%)</span> {q.b}</span>
+                    <div key={idx} className="border-b border-slate-100 pb-8 last:border-0 last:pb-0">
+                      <p className="text-sm font-bold text-slate-800 mb-5 leading-relaxed">{q.text}</p>
+                      
+                      {/* 長いテキストでも見やすい縦並びレイアウトに変更 */}
+                      <div className="flex flex-col gap-3 mb-4">
+                        <div className="flex justify-between items-start text-xs">
+                          <span className="w-4/5 pr-3 text-slate-600 font-bold leading-relaxed">{q.a}</span>
+                          <span className="font-black text-indigo-500 text-sm">{stats.aPercent}%</span>
+                        </div>
+                        <div className="flex justify-between items-start text-xs">
+                          <span className="w-4/5 pr-3 text-slate-600 font-bold leading-relaxed">{q.b}</span>
+                          <span className="font-black text-rose-400 text-sm">{stats.bPercent}%</span>
+                        </div>
                       </div>
+
                       <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex">
-                        <div style={{ width: `${stats.aPercent}%` }} className="bg-slate-800 h-full transition-all duration-1000" />
-                        <div style={{ width: `${stats.bPercent}%` }} className="bg-slate-300 h-full transition-all duration-1000" />
+                        <div style={{ width: `${stats.aPercent}%` }} className="bg-indigo-500 h-full transition-all duration-1000" />
+                        <div style={{ width: `${stats.bPercent}%` }} className="bg-rose-400 h-full transition-all duration-1000" />
                       </div>
                     </div>
                   )

@@ -29,10 +29,6 @@ export default function Home() {
   const [isRestoring, setIsRestoring] = useState(true)
   const [columnIdx, setColumnIdx] = useState(0)
 
-  const [aiSummary, setAiSummary] = useState('')
-  const [isGeneratingAI, setIsGeneratingAI] = useState(false)
-  const [hasGeneratedAI, setHasGeneratedAI] = useState(false)
-
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
@@ -211,12 +207,17 @@ export default function Home() {
 
   const addDummyUsers = useCallback(async () => {
     if (!currentRoom) return
-    const dummies = ['あきら(Bot)', 'サヤカ(Bot)', 'ケンジ(Bot)', 'マイ(Bot)'].map((name) => ({
-      user_id: `dummy-${crypto.randomUUID().slice(0, 9)}`,
-      room_code: currentRoom.code, name,
-      answers: QUESTIONS.map(() => (Math.random() > 0.5 ? 1 : -1)),
-      is_finished: true,
-    }))
+    const dummies = ['あきら(Bot)', 'サヤカ(Bot)', 'ケンジ(Bot)', 'マイ(Bot)'].map((name) => {
+      // エラー対策: crypto.randomUUIDがない環境でも安全にIDを発行
+      const randomStr = typeof crypto.randomUUID === 'function' ? crypto.randomUUID().slice(0, 9) : Math.random().toString(36).substring(2, 11);
+      return {
+        user_id: `dummy-${randomStr}`,
+        room_code: currentRoom.code, 
+        name,
+        answers: QUESTIONS.map(() => (Math.random() > 0.5 ? 1 : -1)),
+        is_finished: true,
+      };
+    })
     await supabase.from('participants').insert(dummies)
   }, [currentRoom])
 
@@ -246,8 +247,6 @@ export default function Home() {
     setRoomCode(''); setJoinCodeInput(''); setLocalAnswers([]); setCurrentQIdx(0)
     setIsHost(false); setUserName(''); setCurrentView('NAME_INPUT'); setShowMethodology(false); setShowAlgorithm(false); setIsRestoring(false)
     
-    setAiSummary(''); setIsGeneratingAI(false); setHasGeneratedAI(false);
-
     await supabase.auth.signOut()
     const { data } = await supabase.auth.signInAnonymously()
     setUserId(data.user?.id ?? null)
@@ -257,7 +256,6 @@ export default function Home() {
     }
   }, [])
 
-  // --- 再計算ロジック（グループの掟・全ペアの返却を追加） ---
   const calculateEnhancedResults = useCallback(() => {
     const res = calculateResults(roomParticipants);
     if (!res || !res.best?.p1) return null;
@@ -269,7 +267,6 @@ export default function Home() {
     });
     centroid = centroid.map(val => val / finishedPlayers.length);
 
-    // 【新機能】グループの隠れた掟（裏ルール）の抽出
     const groupRules: string[] = [];
     const groupWeaknesses: string[] = [];
 
@@ -284,7 +281,6 @@ export default function Home() {
       { a: "親しき中にも礼儀あり。「心のATフィールド」展開", aW: "お互いの深い悩みや秘密は共有されない", b: "隠し事は一切なし。プライバシー皆無の「オープン」", bW: "距離感が近すぎて、干渉しすぎてしまう" }
     ];
 
-    // 平均値が±0.4以上傾いているものを「グループの顕著な特徴」として抽出
     centroid.forEach((val, idx) => {
       if (val >= 0.4) { 
         groupRules.push(ruleDict[idx].a);
@@ -295,7 +291,6 @@ export default function Home() {
       }
     });
 
-    // 全ペアのスコア（ネットワーク図用）を計算して追加
     let allPairs = [];
     for (let i = 0; i < finishedPlayers.length; i++) {
       for (let j = i + 1; j < finishedPlayers.length; j++) {
@@ -370,61 +365,6 @@ export default function Home() {
 
     return mapped;
   }, [userId]);
-
-
-  // 【新機能】結果画面に遷移した瞬間にGemini APIを叩いて総評を生成する
-  useEffect(() => {
-    const fetchAIGeneratedSummary = async () => {
-      const res = calculateResults(roomParticipants);
-      if (!res || !res.best?.p1) return;
-
-      setIsGeneratingAI(true);
-      setHasGeneratedAI(true);
-
-      try {
-        const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-        if (!apiKey) {
-          setAiSummary("※現在AIモードはオフです。\n（開発者向け：.env.local に NEXT_PUBLIC_GEMINI_API_KEY を設定すると、ここにAIのガチ総評が表示されます！）");
-          setIsGeneratingAI(false);
-          return;
-        }
-
-        const prompt = `あなたは合コンやチームビルディングを最高に盛り上げるMCです。
-以下の価値観診断の結果を元に、グループ全体への面白くてテンションの上がる総評を200文字程度で発表してください。
-
-【今回の診断結果】
-・最も価値観がシンクロした運命のペア: ${res.best.p1.name} & ${res.best.p2.name} (シンクロ率 ${res.best.percent}%)
-・価値観が真逆だからこそ最強の相棒になるペア: ${res.worst.p1.name} & ${res.worst.p2.name}
-・みんなと違う独自の感性を持つ異端児: ${res.minority.name}
-
-【出力ルール】
-・AIっぽさを完全に消し、人間らしくフレンドリーで熱量高めの口調にすること。
-・「〜ですね！」「〜最高です！」のように絵文字（✨や🔥など）も少し交えて盛り上げること。
-・Markdown（**など）は使わず、プレーンテキストで出力してください。`;
-
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
-          })
-        });
-        const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "AIの生成に失敗しました。";
-        setAiSummary(text);
-      } catch (e) {
-        console.error(e);
-        setAiSummary("AIの通信に失敗しました。");
-      } finally {
-        setIsGeneratingAI(false);
-      }
-    };
-
-    if (currentView === 'RESULT' && !hasGeneratedAI) {
-      fetchAIGeneratedSummary();
-    }
-  }, [currentView, hasGeneratedAI, roomParticipants]);
-
 
   if (!userId || isRestoring) return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center gap-5">
@@ -529,8 +469,6 @@ export default function Home() {
       </div>
     </div>
   )
-
-  // --- Views ---
 
   if (currentView === 'NAME_INPUT') return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">
@@ -760,39 +698,85 @@ export default function Home() {
             <span className="text-xs font-black text-indigo-500 tracking-[0.2em] uppercase mb-3 block">Analysis Result</span>
             <h1 className="text-4xl md:text-5xl font-black text-slate-800 tracking-tight">診断結果</h1>
           </div>
+          
           <div className="space-y-10">
 
+            {/* 1. 一番盛り上がる: ベストペア */}
             <section>
-              <div className="bg-gradient-to-r from-indigo-500 to-rose-400 p-1 rounded-[2rem] shadow-xl shadow-indigo-200/50">
-                <div className="bg-white rounded-[1.8rem] p-6 md:p-8 relative overflow-hidden">
-                  <div className="flex items-center justify-center gap-2 mb-4">
-                    <span className="text-2xl animate-bounce">✨</span>
-                    <h3 className="font-black text-slate-800 text-xl tracking-tight">AI MCのグループ総評</h3>
-                    <span className="text-2xl animate-bounce">✨</span>
-                  </div>
-                  {isGeneratingAI ? (
-                    <div className="flex flex-col items-center justify-center py-6 gap-3">
-                      <div className="flex gap-2">
-                        <div className="w-3 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                        <div className="w-3 h-3 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                        <div className="w-3 h-3 bg-rose-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                      </div>
-                      <p className="text-sm font-bold text-slate-400 animate-pulse mt-2">AIがグループの空気を分析中...</p>
-                    </div>
-                  ) : (
-                    <p className="text-slate-700 font-bold leading-relaxed whitespace-pre-wrap px-2">
-                      {aiSummary}
-                    </p>
-                  )}
+              <div className="mb-4 text-center">
+                <h3 className="font-black text-slate-800 text-2xl tracking-tight">最も価値観が近い2人</h3>
+                <p className="text-sm text-slate-500 mt-2 font-medium">考え方のベクトルが似ているため、一緒にいて自然体でいられる関係です。</p>
+              </div>
+              <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 text-center relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-800" />
+                <div className="flex items-center justify-center gap-4 mb-8 mt-2">
+                  <span className="text-3xl md:text-4xl font-black text-slate-800">{results.best.p1.name.replace('(Bot)', '')}</span>
+                  <span className="text-slate-300 text-3xl font-light">×</span>
+                  <span className="text-3xl md:text-4xl font-black text-slate-800">{results.best.p2.name.replace('(Bot)', '')}</span>
+                </div>
+                <div className="inline-flex items-baseline bg-slate-50 px-8 py-4 rounded-[2rem] border border-slate-100">
+                  <span className="text-sm font-black text-slate-400 mr-5 uppercase tracking-wider">MATCH</span>
+                  <span className="text-6xl font-black text-slate-800 tracking-tighter">{results.best.percent}</span>
+                  <span className="text-2xl font-bold text-slate-400 ml-1">%</span>
                 </div>
               </div>
             </section>
+            
+            {/* 2. グループ内のアクセント: ワーストペア & 独自路線 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <section>
+                <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 h-full flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-lg mb-2">最も価値観が遠い2人</h3>
+                    <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">考え方が違うため、お互いの弱点をカバーし合えるチームになれる関係です。</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 text-center">
+                    <div className="text-xl font-black text-slate-800 mb-3">{results.worst.p1.name.replace('(Bot)', '')} <span className="text-slate-300 font-normal mx-1">vs</span> {results.worst.p2.name.replace('(Bot)', '')}</div>
+                    <div><span className="text-xs font-bold text-slate-400 mr-2">類似度</span><span className="font-black text-2xl text-slate-800">{results.worst.percent}%</span></div>
+                  </div>
+                </div>
+              </section>
+              <section>
+                <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 h-full flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-lg mb-2">最も独自路線を行く人</h3>
+                    <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">グループの平均値から最も外れた独自の感性を持つ、貴重な存在です。</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 text-center">
+                    <div className="text-2xl font-black text-slate-800 mb-2">{results.minority.name.replace('(Bot)', '')}</div>
+                    <div><span className="text-xs font-bold text-slate-400 mr-2">独自性スコア</span><span className="font-black text-2xl text-slate-800">{results.minority.uniquenessScore}%</span></div>
+                  </div>
+                </div>
+              </section>
+            </div>
 
-            {/* 新機能: 相関ネットワーク図（2Dマップの進化版） */}
-            <section className="pt-2 border-t-2 border-dashed border-slate-200">
-              <div className="mb-4 text-center mt-6">
+            {/* 3. 全員が自分ごととして楽しめる: 各自のベストマッチ */}
+            <section>
+              <h3 className="text-lg font-black text-slate-800 border-b-2 border-slate-200 pb-3 mb-5 mt-4">参加者ごとのベストマッチ</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {results.personalBests.map((pb, i) => {
+                   const personData = mapData.find(m => m.id === pb.me.id);
+                   const title = personData ? personData.title : "";
+                   
+                   return (
+                    <div key={i} className="flex flex-col p-5 bg-white rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400"></div>
+                      <span className="text-[10px] font-black text-indigo-500 mb-1 ml-2">{title}</span>
+                      <div className="flex justify-between items-center ml-2">
+                        <div className="font-bold text-slate-700 text-sm">{pb.me.name.replace('(Bot)', '')} <span className="text-slate-400 font-medium text-xs mx-2">の相手</span> <span className="text-slate-900 text-base">{pb.partner.name.replace('(Bot)', '')}</span></div>
+                        <div className="text-sm font-black text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">{pb.percent}%</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+
+            {/* 4. なぜそうなったのかの種明かし: 相関ネットワーク図（2Dマップ） */}
+            <section className="pt-10 border-t-2 border-dashed border-slate-200">
+              <div className="mb-4 text-center mt-4">
                 <h3 className="font-black text-slate-800 text-2xl tracking-tight">相関ネットワーク図</h3>
-                <p className="text-sm text-slate-500 mt-2 font-medium">誰と誰が繋がっているか（シンクロ率60%以上）を可視化しました。</p>
+                <p className="text-sm text-slate-500 mt-2 font-medium">8次元のデータを2次元に圧縮。誰と誰が繋がっているか（シンクロ率60%以上）を可視化しました。</p>
               </div>
               <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 relative">
                 <div className="relative w-full aspect-square max-w-md mx-auto bg-slate-50/50 rounded-xl border border-slate-200 overflow-hidden">
@@ -806,7 +790,6 @@ export default function Home() {
                   <div className="absolute top-1/2 left-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">保守・パッシブ</div>
                   <div className="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">革新・アクティブ</div>
 
-                  {/* 相関ネットワーク（エッジの描画） */}
                   <svg className="absolute inset-0 w-full h-full pointer-events-none">
                     {results.allPairs.filter(p => p.percent >= 60).map((conn, i) => {
                       const p1 = mapData.find(m => m.id === conn.p1.id);
@@ -847,29 +830,9 @@ export default function Home() {
               </div>
             </section>
 
-            <section>
-              <div className="mb-4 text-center">
-                <h3 className="font-black text-slate-800 text-2xl tracking-tight">最も価値観が近い2人</h3>
-                <p className="text-sm text-slate-500 mt-2 font-medium">考え方のベクトルが似ているため、一緒にいて自然体でいられる関係です。</p>
-              </div>
-              <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 text-center relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-800" />
-                <div className="flex items-center justify-center gap-4 mb-8 mt-2">
-                  <span className="text-3xl md:text-4xl font-black text-slate-800">{results.best.p1.name.replace('(Bot)', '')}</span>
-                  <span className="text-slate-300 text-3xl font-light">×</span>
-                  <span className="text-3xl md:text-4xl font-black text-slate-800">{results.best.p2.name.replace('(Bot)', '')}</span>
-                </div>
-                <div className="inline-flex items-baseline bg-slate-50 px-8 py-4 rounded-[2rem] border border-slate-100">
-                  <span className="text-sm font-black text-slate-400 mr-5 uppercase tracking-wider">MATCH</span>
-                  <span className="text-6xl font-black text-slate-800 tracking-tighter">{results.best.percent}</span>
-                  <span className="text-2xl font-bold text-slate-400 ml-1">%</span>
-                </div>
-              </div>
-            </section>
-
-            {/* 新機能: グループの隠れた掟 */}
-            <section className="pt-2 border-t-2 border-dashed border-slate-200">
-              <div className="mb-4 text-center mt-6">
+            {/* 5. マップからの流れ: このグループの「隠れた掟」 */}
+            <section className="pt-10 border-t-2 border-dashed border-slate-200">
+              <div className="mb-4 text-center mt-4">
                 <h3 className="font-black text-slate-800 text-2xl tracking-tight">このグループの「隠れた掟」</h3>
                 <p className="text-sm text-slate-500 mt-2 font-medium">全員の回答の偏りから、この集団の暗黙のルールと致命的な弱点をあぶり出します。</p>
               </div>
@@ -911,54 +874,7 @@ export default function Home() {
               </div>
             </section>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
-              <section>
-                <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 h-full flex flex-col justify-between">
-                  <div>
-                    <h3 className="font-bold text-slate-800 text-lg mb-2">最も価値観が遠い2人</h3>
-                    <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">考え方が違うため、お互いの弱点をカバーし合えるチームになれる関係です。</p>
-                  </div>
-                  <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 text-center">
-                    <div className="text-xl font-black text-slate-800 mb-3">{results.worst.p1.name.replace('(Bot)', '')} <span className="text-slate-300 font-normal mx-1">vs</span> {results.worst.p2.name.replace('(Bot)', '')}</div>
-                    <div><span className="text-xs font-bold text-slate-400 mr-2">類似度</span><span className="font-black text-2xl text-slate-800">{results.worst.percent}%</span></div>
-                  </div>
-                </div>
-              </section>
-              <section>
-                <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 h-full flex flex-col justify-between">
-                  <div>
-                    <h3 className="font-bold text-slate-800 text-lg mb-2">最も独自路線を行く人</h3>
-                    <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">グループの平均値から最も外れた独自の感性を持つ、貴重な存在です。</p>
-                  </div>
-                  <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 text-center">
-                    <div className="text-2xl font-black text-slate-800 mb-2">{results.minority.name.replace('(Bot)', '')}</div>
-                    <div><span className="text-xs font-bold text-slate-400 mr-2">独自性スコア</span><span className="font-black text-2xl text-slate-800">{results.minority.uniquenessScore}%</span></div>
-                  </div>
-                </div>
-              </section>
-            </div>
-
-            <section>
-              <h3 className="text-lg font-black text-slate-800 border-b-2 border-slate-200 pb-3 mb-5 mt-4">参加者ごとのベストマッチ</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {results.personalBests.map((pb, i) => {
-                   const personData = mapData.find(m => m.id === pb.me.id);
-                   const title = personData ? personData.title : "";
-                   
-                   return (
-                    <div key={i} className="flex flex-col p-5 bg-white rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400"></div>
-                      <span className="text-[10px] font-black text-indigo-500 mb-1 ml-2">{title}</span>
-                      <div className="flex justify-between items-center ml-2">
-                        <div className="font-bold text-slate-700 text-sm">{pb.me.name.replace('(Bot)', '')} <span className="text-slate-400 font-medium text-xs mx-2">の相手</span> <span className="text-slate-900 text-base">{pb.partner.name.replace('(Bot)', '')}</span></div>
-                        <div className="text-sm font-black text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">{pb.percent}%</div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-
+            {/* 6. おまけ: 詳細なグループの回答分布 */}
             <section className="pt-10 border-t-2 border-dashed border-slate-200">
               <div className="mb-10 text-center">
                 <h3 className="font-black text-slate-800 text-2xl tracking-tight">グループの回答分布</h3>
@@ -991,6 +907,7 @@ export default function Home() {
                 })}
               </div>
             </section>
+
           </div>
 
           <div className="mt-16 flex flex-col gap-5 max-w-sm mx-auto pb-8">

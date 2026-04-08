@@ -6,7 +6,6 @@ import { QUESTIONS, COLUMNS } from '@/lib/questions'
 import { calculateResults } from '@/lib/matching'
 import type { Room, Participant } from '@/types/database'
 
-// 'JOIN' を 'NAME_INPUT' と 'ROOM_SELECT' に分割しました
 type View = 'NAME_INPUT' | 'ROOM_SELECT' | 'LOBBY' | 'PLAYING' | 'WAITING' | 'CALCULATING' | 'RESULT'
 
 export default function Home() {
@@ -14,7 +13,6 @@ export default function Home() {
   const [rooms, setRooms] = useState<Room[]>([])
   const [participants, setParticipants] = useState<Participant[]>([])
 
-  // 初期画面を NAME_INPUT に変更
   const [currentView, setCurrentView] = useState<View>('NAME_INPUT')
   const [roomCode, setRoomCode] = useState('')
   const [joinCodeInput, setJoinCodeInput] = useState('')
@@ -125,7 +123,6 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [currentView])
 
-  // --- Actions ---
   const handleNextToRoomSelect = useCallback(() => {
     if (!userName.trim()) { setErrorMsg('ニックネームを入力してください。'); return }
     setErrorMsg('')
@@ -135,12 +132,21 @@ export default function Home() {
   const handleCreateRoom = useCallback(async () => {
     const code = Math.floor(1000 + Math.random() * 9000).toString()
     try {
-      const { error: roomError } = await supabase.from('rooms').insert({ code, status: 'waiting', host_id: userId! })
+      // 登録成功時にデータを取得して直接Stateに入れる（表示ラグのバグ解消）
+      const { data: roomData, error: roomError } = await supabase.from('rooms').insert({ code, status: 'waiting', host_id: userId! }).select().single()
       if (roomError) throw roomError
-      const { error: partError } = await supabase.from('participants').insert({ user_id: userId!, room_code: code, name: userName, answers: [], is_finished: false })
+      
+      const { data: partData, error: partError } = await supabase.from('participants').insert({ user_id: userId!, room_code: code, name: userName, answers: [], is_finished: false }).select().single()
       if (partError) throw partError
+
+      setRooms(prev => [...prev, roomData as Room])
+      setParticipants(prev => [...prev, partData as Participant])
+
       setRoomCode(code); setIsHost(true); setCurrentView('LOBBY'); setErrorMsg('')
-    } catch { setErrorMsg('通信エラーが発生しました。') }
+    } catch (err) { 
+      console.error(err)
+      setErrorMsg('通信エラーが発生しました。') 
+    }
   }, [userName, userId])
 
   const handleJoinRoom = useCallback(async () => {
@@ -151,8 +157,9 @@ export default function Home() {
     try {
       const existing = participants.find((p) => p.room_code === joinCodeInput && p.user_id === userId)
       if (!existing) {
-        const { error } = await supabase.from('participants').insert({ user_id: userId!, room_code: joinCodeInput, name: userName, answers: [], is_finished: false })
+        const { data: partData, error } = await supabase.from('participants').insert({ user_id: userId!, room_code: joinCodeInput, name: userName, answers: [], is_finished: false }).select().single()
         if (error) throw error
+        setParticipants(prev => [...prev, partData as Participant])
       }
       setRoomCode(joinCodeInput); setIsHost(false); setCurrentView('LOBBY'); setErrorMsg('')
     } catch { setErrorMsg('通信エラーが発生しました。') }
@@ -202,43 +209,61 @@ export default function Home() {
     await supabase.from('rooms').update({ status: 'calculating' }).eq('id', currentRoom.id)
   }, [isHost, currentRoom])
 
-  // 完全に初期状態に戻すためのリセット関数
   const completelyResetGame = useCallback(() => {
     setRoomCode(''); setJoinCodeInput(''); setLocalAnswers([]); setCurrentQIdx(0)
     setIsHost(false); setUserName(''); setCurrentView('NAME_INPUT'); setShowMethodology(false); setIsRestoring(false)
   }, [])
 
   if (!userId || isRestoring) return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center gap-4">
-      <div className="w-10 h-10 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin" />
-      <p className="text-sm font-bold text-gray-500">データを読み込んでいます...</p>
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center gap-5">
+      <div className="relative flex justify-center items-center">
+        <div className="w-12 h-12 border-4 border-indigo-100 rounded-full"></div>
+        <div className="w-12 h-12 border-4 border-indigo-500 rounded-full border-t-transparent animate-spin absolute"></div>
+      </div>
+      <p className="text-sm font-bold text-slate-400 tracking-wider">データを読み込んでいます...</p>
     </div>
   )
 
   // --- UI Components ---
   const ResetButton = () => (
-    <div className="mt-8 text-center pb-4">
-      <button onClick={completelyResetGame} className="text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors">
-        ✕ 最初からやり直す（退出）
+    <div className="mt-12 text-center pb-6">
+      <button onClick={completelyResetGame} className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors bg-white px-4 py-2 rounded-full shadow-sm border border-slate-100">
+        最初からやり直す（退出）
       </button>
     </div>
   )
 
   const MethodologyModal = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-lg w-full relative my-8 p-6 shadow-xl">
-        <button onClick={() => setShowMethodology(false)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold">✕</button>
-        <h3 className="text-xl font-bold mb-4 border-b pb-2">開発者の想いとアルゴリズム</h3>
-        <div className="space-y-4 text-sm text-gray-700 leading-relaxed max-h-[60vh] overflow-y-auto pr-2">
-          <p className="font-bold">「気が合う」という感覚は、科学できる。</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-white rounded-[2rem] max-w-lg w-full relative my-8 p-6 sm:p-8 shadow-2xl">
+        <button onClick={() => setShowMethodology(false)} className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition-colors">✕</button>
+        
+        <div className="text-center mb-6 mt-2">
+          {/* public/icon-dt.jpg を読み込む */}
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100">
+             <img src="/icon-dt.jpg" alt="Developer" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/150?text=Dog' }} />
+          </div>
+          <h3 className="text-2xl font-black text-slate-800 tracking-tight">開発者の想いと裏側</h3>
+        </div>
+
+        <div className="space-y-5 text-sm text-slate-600 leading-relaxed max-h-[50vh] overflow-y-auto pr-3">
+          <p className="font-bold text-slate-800 text-base">「気が合う」という感覚は、科学できる。</p>
           <p>友人同士の集まりや、新しいチームでの出会いにおいて、「気が合うね」と感じる直感は、実は心理学的・統計学的に裏付け可能な事象です。</p>
-          <h4 className="font-bold text-gray-900 mt-6 bg-gray-100 px-2 py-1 rounded">1. コサイン類似度（Cosine Similarity）</h4>
-          <p>全員の回答を多次元ベクトルに変換し、その「方向性の近さ」を角度として計算します。</p>
-          <h4 className="font-bold text-gray-900 mt-4 bg-gray-100 px-2 py-1 rounded">2. 相互補完性（Complementarity Theory）</h4>
-          <p>「価値観が真逆＝相性が悪い」とは限りません。異なる特性を持つペアがチームとして強固な関係を築く「相補性」が確認されています。</p>
-          <h4 className="font-bold text-gray-900 mt-4 bg-gray-100 px-2 py-1 rounded">3. 情報エントロピーと特異度判定</h4>
-          <p>参加者全員の「価値観の重心（平均値）」を計算し、そこから最も離れている人物を「マイノリティ・レポート」として抽出しています。</p>
-          <p className="mt-6 text-xs text-gray-500 text-center">このアプリが、皆様の深い対話のきっかけになれば幸いです。</p>
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+            <h4 className="font-bold text-indigo-600 mb-1">1. コサイン類似度（Cosine Similarity）</h4>
+            <p>全員の回答を多次元ベクトルに変換し、その「方向性の近さ」を角度として計算します。</p>
+          </div>
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+            <h4 className="font-bold text-rose-500 mb-1">2. 相互補完性（Complementarity Theory）</h4>
+            <p>「価値観が真逆＝相性が悪い」とは限りません。異なる特性を持つペアがチームとして強固な関係を築く「相補性」が確認されています。</p>
+          </div>
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+            <h4 className="font-bold text-amber-500 mb-1">3. 情報エントロピーと特異度判定</h4>
+            <p>参加者全員の「価値観の重心（平均値）」を計算し、そこから最も離れている人物を「マイノリティ・レポート」として抽出しています。</p>
+          </div>
+          <p className="mt-8 pb-4 text-xs font-bold text-slate-400 text-center tracking-wider">
+            このアプリが、皆様の深い対話のきっかけになれば幸いです。
+          </p>
         </div>
       </div>
     </div>
@@ -247,25 +272,30 @@ export default function Home() {
   // --- Views ---
   
   if (currentView === 'NAME_INPUT') return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col justify-center py-8 px-4">
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">
       <div className="max-w-md w-full mx-auto">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2 tracking-tight">価値観マッチング</h1>
-          <p className="text-gray-500 text-sm font-medium">直感で答える、理論に基づく相性診断</p>
+        <div className="mb-10 text-center">
+          <h1 className="text-4xl md:text-5xl font-black mb-3 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-rose-500">
+            価値観マッチング
+          </h1>
+          <p className="text-slate-500 font-medium tracking-wide">直感で答える、理論に基づく相性診断</p>
         </div>
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 mb-6">
-          {errorMsg && <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-6 text-sm font-medium text-center border border-red-200">{errorMsg}</div>}
-          <div className="mb-4">
-            <label className="block text-sm font-bold text-gray-700 mb-2">まずはニックネームを入力</label>
+        <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-xl shadow-slate-200/50 border border-slate-100 mb-6">
+          {errorMsg && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold text-center border border-rose-100">{errorMsg}</div>}
+          <div className="mb-6">
+            <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">まずはニックネームを入力</label>
             <input type="text" placeholder="例：たろう" value={userName} onChange={(e) => setUserName(e.target.value)}
-              className="w-full p-4 rounded-xl border-2 border-gray-200 bg-gray-50 text-gray-900 focus:outline-none focus:border-gray-800 focus:bg-white transition-colors text-lg" maxLength={10} />
+              className="w-full p-4 rounded-2xl bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-lg font-medium" maxLength={10} />
           </div>
-          <button onClick={handleNextToRoomSelect} className="w-full py-4 rounded-xl bg-blue-600 text-white font-bold text-lg hover:bg-blue-700 active:scale-95 transition-transform shadow-sm">
-            次へ
+          <button onClick={handleNextToRoomSelect} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">
+            次へ進む
           </button>
         </div>
         <div className="text-center mt-8">
-          <button onClick={() => setShowMethodology(true)} className="text-sm font-bold text-gray-400 hover:text-gray-600 underline underline-offset-4">開発者の想いとアルゴリズム</button>
+          <button onClick={() => setShowMethodology(true)} className="text-sm font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center justify-center gap-2 mx-auto">
+            <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs text-white">i</span>
+            開発者の想いとアルゴリズム
+          </button>
         </div>
       </div>
       {showMethodology && <MethodologyModal />}
@@ -273,31 +303,31 @@ export default function Home() {
   )
 
   if (currentView === 'ROOM_SELECT') return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col justify-center py-8 px-4">
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">
       <div className="max-w-md w-full mx-auto">
         <div className="mb-6">
-          <button onClick={() => setCurrentView('NAME_INPUT')} className="text-sm font-bold text-gray-500 hover:text-gray-800 flex items-center gap-1">
+          <button onClick={() => setCurrentView('NAME_INPUT')} className="text-sm font-bold text-slate-400 hover:text-slate-600 flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-slate-100 transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
             名前変更に戻る
           </button>
         </div>
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 mb-6">
-          {errorMsg && <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-6 text-sm font-medium text-center border border-red-200">{errorMsg}</div>}
-          <div className="space-y-6">
+        <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-xl shadow-slate-200/50 border border-slate-100 mb-6">
+          {errorMsg && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold text-center border border-rose-100">{errorMsg}</div>}
+          <div className="space-y-8">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">A. 新しく始める（幹事）</label>
-              <button onClick={handleCreateRoom} className="w-full py-4 rounded-xl bg-gray-900 text-white font-bold text-lg hover:bg-gray-800 active:scale-95 transition-transform shadow-sm">新しくルームを作る</button>
+              <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">A. 新しく始める（幹事用）</label>
+              <button onClick={handleCreateRoom} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">新しくルームを作る</button>
             </div>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
-              <div className="relative flex justify-center"><span className="px-3 bg-white text-sm text-gray-400 font-bold">または</span></div>
+            <div className="relative py-2">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
+              <div className="relative flex justify-center"><span className="px-4 bg-white text-xs font-bold tracking-widest text-slate-400 uppercase">OR</span></div>
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">B. 招待されたルームに参加</label>
-              <div className="flex flex-col sm:flex-row gap-2">
+              <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">B. 招待されたルームに参加</label>
+              <div className="flex flex-col sm:flex-row gap-3">
                 <input type="text" placeholder="4桁のパスコード" value={joinCodeInput} onChange={(e) => setJoinCodeInput(e.target.value)}
-                  className="flex-1 p-4 rounded-xl border-2 border-gray-200 bg-gray-50 text-center text-xl tracking-widest focus:outline-none focus:border-gray-800 focus:bg-white transition-colors" maxLength={4} />
-                <button onClick={handleJoinRoom} className="w-full sm:w-auto px-8 py-4 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 active:scale-95 transition-transform shadow-sm">参加する</button>
+                  className="flex-1 p-4 rounded-2xl bg-slate-50 text-center text-xl tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-mono text-slate-700" maxLength={4} />
+                <button onClick={handleJoinRoom} className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-slate-800 text-white font-bold hover:bg-slate-900 hover:shadow-lg active:scale-[0.98] transition-all">参加する</button>
               </div>
             </div>
           </div>
@@ -307,42 +337,42 @@ export default function Home() {
   )
 
   if (currentView === 'LOBBY') return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col py-8 px-4 relative">
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col py-8 px-4 relative">
       <div className="max-w-md w-full mx-auto flex flex-col items-center flex-grow justify-center">
-        <span className="text-sm font-bold text-gray-500 mb-2">招待パスコード</span>
-        <div className="text-6xl font-black tracking-widest text-gray-900 mb-4 font-mono bg-white px-8 py-3 rounded-3xl shadow-sm border-2 border-gray-100">{roomCode}</div>
+        <span className="text-sm font-bold text-slate-400 mb-2 tracking-widest uppercase">Room PIN</span>
+        <div className="text-6xl sm:text-7xl font-black tracking-widest text-indigo-600 mb-6 font-mono drop-shadow-sm">{roomCode}</div>
         {isHost && (
-          <div className="mb-8 w-full text-center">
-            <button onClick={copyInviteText} className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 font-bold py-2 px-4 rounded-full border border-gray-300 hover:bg-gray-200 transition-colors text-sm">
+          <div className="mb-10 w-full text-center">
+            <button onClick={copyInviteText} className="inline-flex items-center gap-2 bg-white text-slate-600 font-bold py-3 px-6 rounded-full shadow-sm border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 transition-all text-sm active:scale-95">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
               招待テキストとURLをコピー
             </button>
-            {copySuccess && <p className="text-xs text-gray-600 font-bold mt-2">{copySuccess}</p>}
+            {copySuccess && <p className="text-xs text-emerald-500 font-bold mt-3 animate-pulse">{copySuccess}</p>}
           </div>
         )}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 w-full mb-8 border-t-4 border-t-gray-900">
-          <div className="flex justify-between items-center border-b pb-3 mb-4">
-            <h3 className="text-base font-bold text-gray-800">参加メンバー</h3>
-            <span className="bg-gray-100 text-gray-800 text-sm font-bold px-3 py-1 rounded-lg">{roomParticipants.length} 人</span>
+        <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-xl shadow-slate-200/50 border border-slate-100 w-full mb-8">
+          <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-4">
+            <h3 className="text-base font-bold text-slate-800">参加メンバー</h3>
+            <span className="bg-indigo-50 text-indigo-600 text-sm font-bold px-3 py-1 rounded-full">{roomParticipants.length} 人</span>
           </div>
-          <ul className="space-y-2 mb-4">
+          <ul className="space-y-3 mb-2">
             {roomParticipants.map((p) => (
-              <li key={p.id} className="flex items-center text-gray-800 font-medium p-3 bg-gray-50 rounded-xl border border-gray-100">
-                <span className="w-2 h-2 rounded-full bg-gray-400 mr-3" />{p.name}
-                {p.user_id === userId && <span className="ml-auto text-xs font-bold text-gray-600 bg-gray-200 px-2 py-1 rounded">あなた</span>}
+              <li key={p.id} className="flex items-center text-slate-700 font-bold p-3 bg-slate-50 rounded-2xl">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 mr-3 shadow-sm" />{p.name}
+                {p.user_id === userId && <span className="ml-auto text-[10px] font-black text-indigo-600 bg-indigo-100 px-2 py-1 rounded-md uppercase tracking-wider">You</span>}
               </li>
             ))}
           </ul>
-          {isHost && <button onClick={addDummyUsers} className="w-full py-3 mt-4 rounded-xl border-2 border-dashed border-gray-300 text-gray-500 text-sm font-bold hover:bg-gray-50 transition-colors">+ テスト用メンバーを追加（1人プレイ用）</button>}
+          {isHost && <button onClick={addDummyUsers} className="w-full py-4 mt-6 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 text-sm font-bold hover:bg-slate-50 hover:text-indigo-500 hover:border-indigo-200 transition-colors">+ テスト用メンバーを追加</button>}
         </div>
         {isHost ? (
           <button onClick={startGame} disabled={roomParticipants.length < 2}
-            className={`w-full py-5 rounded-2xl font-bold text-lg transition-all ${roomParticipants.length < 2 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-900 text-white hover:bg-gray-800 active:scale-95 shadow-md'}`}>
+            className={`w-full py-5 rounded-2xl font-bold text-lg transition-all active:scale-[0.98] ${roomParticipants.length < 2 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200'}`}>
             {roomParticipants.length < 2 ? '2人以上で開始できます' : '診断をスタート'}
           </button>
         ) : (
-          <div className="w-full py-5 text-center text-gray-600 font-bold bg-white rounded-2xl border-2 border-gray-200 flex justify-center items-center gap-3">
-            <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />幹事のスタートを待っています...
+          <div className="w-full py-5 text-center text-slate-500 font-bold bg-white rounded-2xl shadow-sm border border-slate-100 flex justify-center items-center gap-3">
+            <div className="w-5 h-5 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />幹事のスタートを待っています...
           </div>
         )}
       </div>
@@ -353,23 +383,24 @@ export default function Home() {
   if (currentView === 'PLAYING') {
     const q = QUESTIONS[currentQIdx]
     return (
-      <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col py-8 px-4 relative">
+      <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col py-8 px-4 relative">
         <div className="max-w-2xl w-full mx-auto flex-grow flex flex-col justify-center">
-          <div className="flex flex-col md:flex-row justify-between md:items-end mb-8 gap-4">
+          <div className="flex flex-col md:flex-row justify-between md:items-end mb-8 gap-4 px-2">
             <div>
-              <span className="text-gray-400 text-xs font-bold uppercase tracking-wider block mb-1">Question {currentQIdx + 1} of {QUESTIONS.length}</span>
-              <span className="inline-block bg-gray-100 text-gray-800 border border-gray-300 text-sm font-bold px-4 py-1.5 rounded-lg">{q.dim}</span>
+              <span className="text-slate-400 text-xs font-black uppercase tracking-widest block mb-2">Question {currentQIdx + 1} / {QUESTIONS.length}</span>
+              <span className="inline-block bg-white text-indigo-600 border border-indigo-100 text-sm font-bold px-4 py-1.5 rounded-full shadow-sm">{q.dim}</span>
             </div>
-            <div className="w-full md:w-1/3 bg-gray-200 rounded-full h-2.5 overflow-hidden">
-              <div className="bg-gray-900 h-2.5 rounded-full transition-all duration-300" style={{ width: `${(currentQIdx / QUESTIONS.length) * 100}%` }} />
+            <div className="w-full md:w-1/3 bg-slate-200 rounded-full h-2 overflow-hidden">
+              <div className="bg-gradient-to-r from-indigo-500 to-rose-400 h-full transition-all duration-500 ease-out" style={{ width: `${(currentQIdx / QUESTIONS.length) * 100}%` }} />
             </div>
           </div>
-          <div className="bg-white rounded-2xl p-6 shadow-sm border-2 border-gray-900 shadow-[4px_4px_0_0_rgba(17,24,39,1)] mb-8 min-h-[160px] flex items-center justify-center">
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 leading-relaxed text-center px-4">{q.text}</h2>
+          <div className="bg-white rounded-[2rem] p-8 sm:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 mb-8 min-h-[200px] flex items-center justify-center relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-rose-400" />
+            <h2 className="text-2xl md:text-3xl font-bold text-slate-800 leading-relaxed text-center">{q.text}</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button onClick={() => handleAnswer(1)} className="p-6 rounded-2xl bg-white border-2 border-gray-200 text-xl font-bold text-gray-800 hover:border-gray-900 hover:bg-gray-50 active:scale-95 transition-all shadow-sm">{q.a}</button>
-            <button onClick={() => handleAnswer(-1)} className="p-6 rounded-2xl bg-white border-2 border-gray-200 text-xl font-bold text-gray-800 hover:border-gray-900 hover:bg-gray-50 active:scale-95 transition-all shadow-sm">{q.b}</button>
+            <button onClick={() => handleAnswer(1)} className="p-6 rounded-[1.5rem] bg-white border border-slate-200 text-xl font-bold text-slate-700 hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-700 active:scale-95 transition-all shadow-sm">{q.a}</button>
+            <button onClick={() => handleAnswer(-1)} className="p-6 rounded-[1.5rem] bg-white border border-slate-200 text-xl font-bold text-slate-700 hover:border-rose-400 hover:bg-rose-50 hover:text-rose-700 active:scale-95 transition-all shadow-sm">{q.b}</button>
           </div>
         </div>
         <ResetButton />
@@ -380,35 +411,35 @@ export default function Home() {
   if (currentView === 'WAITING') {
     const col = COLUMNS[columnIdx]
     return (
-      <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col py-8 px-4 relative">
+      <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col py-8 px-4 relative">
         <div className="max-w-md w-full mx-auto text-center flex-grow flex flex-col justify-center">
-          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-gray-200">
-            <svg className="w-10 h-10 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+          <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-emerald-100 border border-slate-100">
+            <svg className="w-12 h-12 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
           </div>
-          <h2 className="text-3xl font-black text-gray-900 mb-2">回答完了</h2>
-          <p className="text-gray-500 font-medium mb-8">全員が答え終わるのを待っています...</p>
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 text-left border-t-4 border-t-gray-400 mb-6">
-            <div className="flex justify-between items-center border-b pb-3 mb-4">
-              <h3 className="text-sm font-bold text-gray-700">現在の状況</h3>
-              <span className="text-gray-900 font-black text-xl font-mono">{roomParticipants.filter((p) => p.is_finished).length} / {roomParticipants.length}</span>
+          <h2 className="text-3xl font-black text-slate-800 mb-2">回答完了</h2>
+          <p className="text-slate-500 font-medium mb-8">全員が答え終わるのを待っています...</p>
+          <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 text-left mb-6">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+              <h3 className="text-sm font-bold text-slate-600">進行状況</h3>
+              <span className="text-indigo-600 font-black text-xl font-mono">{roomParticipants.filter((p) => p.is_finished).length} / {roomParticipants.length}</span>
             </div>
             <ul className="space-y-3">
               {roomParticipants.map((p) => (
-                <li key={p.id} className="flex justify-between items-center text-sm font-bold p-2 rounded-lg bg-gray-50">
-                  <span className={p.is_finished ? 'text-gray-900' : 'text-gray-400'}>{p.name}</span>
-                  {p.is_finished ? <span className="px-2.5 py-1 bg-gray-200 text-gray-800 rounded-md text-xs">完了</span>
-                    : <span className="text-gray-400 text-xs flex items-center gap-1.5"><span className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" />考え中</span>}
+                <li key={p.id} className="flex justify-between items-center text-sm font-bold p-3 rounded-2xl bg-slate-50">
+                  <span className={p.is_finished ? 'text-slate-800' : 'text-slate-400'}>{p.name}</span>
+                  {p.is_finished ? <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-xs">完了</span>
+                    : <span className="text-slate-400 text-xs flex items-center gap-2"><span className="w-2 h-2 bg-slate-300 rounded-full animate-pulse" />考え中</span>}
                 </li>
               ))}
             </ul>
           </div>
-          <div className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-4 text-left min-h-[140px] flex flex-col justify-center">
-            <span className="text-xs font-bold text-gray-500 mb-1 block">待ち時間コラム</span>
-            <h4 className="font-bold text-gray-800 mb-2">{col.title}</h4>
-            <p className="text-xs text-gray-600 leading-relaxed">{col.text}</p>
+          <div className="bg-indigo-50/50 rounded-[2rem] p-6 text-left min-h-[140px] flex flex-col justify-center border border-indigo-100/50">
+            <span className="text-xs font-black text-indigo-400 mb-2 block uppercase tracking-wider">Column</span>
+            <h4 className="font-bold text-slate-800 mb-2">{col.title}</h4>
+            <p className="text-xs text-slate-600 leading-relaxed">{col.text}</p>
           </div>
           {isHost && allFinished && (
-            <button onClick={triggerCalculation} className="mt-8 w-full py-5 rounded-2xl bg-gray-900 text-white font-bold text-xl hover:bg-gray-800 active:scale-95 transition-transform shadow-[4px_4px_0_0_rgba(156,163,175,1)]">結果を解析する</button>
+            <button onClick={triggerCalculation} className="mt-10 w-full py-5 rounded-2xl bg-gradient-to-r from-indigo-600 to-rose-500 text-white font-bold text-xl hover:shadow-lg hover:shadow-rose-200 active:scale-[0.98] transition-all">結果を解析する</button>
           )}
         </div>
         <ResetButton />
@@ -417,99 +448,113 @@ export default function Home() {
   }
 
   if (currentView === 'CALCULATING') return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center">
-      <div className="relative w-20 h-20 mb-8">
-        <div className="absolute inset-0 border-4 border-gray-200 rounded-full" />
-        <div className="absolute inset-0 border-4 border-gray-900 rounded-full border-t-transparent animate-spin" />
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center">
+      <div className="relative w-24 h-24 mb-8 flex justify-center items-center">
+        <div className="absolute inset-0 border-4 border-slate-200 rounded-full" />
+        <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin" />
+        <span className="text-2xl animate-pulse">🧠</span>
       </div>
-      <h2 className="text-2xl font-black text-gray-900 mb-2">解析中...</h2>
-      <p className="text-sm text-gray-500 font-medium">多次元ベクトル空間での距離を測定しています</p>
+      <h2 className="text-2xl font-black text-slate-800 mb-2 tracking-widest">解析中...</h2>
+      <p className="text-sm text-slate-500 font-medium">多次元ベクトル空間での距離を測定しています</p>
     </div>
   )
 
   if (currentView === 'RESULT') {
     const results = calculateResults(roomParticipants)
     if (!results) return (
-      <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center">
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 text-center max-w-md w-full mx-4">
-          <p className="mb-6 font-bold text-gray-600">計算に必要なデータが足りません。</p>
-          <button onClick={completelyResetGame} className="w-full py-3 bg-gray-200 rounded-xl font-bold text-gray-700 hover:bg-gray-300">トップに戻る</button>
+      <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center">
+        <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200 text-center max-w-md w-full mx-4">
+          <p className="mb-6 font-bold text-slate-600">計算に必要なデータが足りません。</p>
+          <button onClick={completelyResetGame} className="w-full py-4 bg-slate-100 rounded-2xl font-bold text-slate-600 hover:bg-slate-200">トップに戻る</button>
         </div>
       </div>
     )
     return (
-      <div className="min-h-screen bg-gray-50 text-gray-900 font-sans py-8 px-4">
+      <div className="min-h-screen bg-slate-50 text-slate-800 font-sans py-10 px-4">
         {showMethodology && <MethodologyModal />}
         <div className="max-w-3xl w-full mx-auto pb-10">
-          <div className="text-center mb-10">
-            <span className="text-xs font-bold text-gray-500 tracking-widest uppercase border-b-2 border-gray-900 inline-block pb-1 mb-2">Analysis Result</span>
-            <h1 className="text-4xl font-black text-gray-900 mt-2">診断結果</h1>
+          <div className="text-center mb-12">
+            <span className="text-xs font-black text-indigo-500 tracking-[0.2em] uppercase mb-3 block">Analysis Result</span>
+            <h1 className="text-4xl md:text-5xl font-black text-slate-800 tracking-tight">診断結果</h1>
           </div>
-          <div className="space-y-12">
+          <div className="space-y-10">
             <section>
-              <h3 className="font-black text-gray-900 text-xl mb-1">最も価値観が近い2人</h3>
-              <p className="text-sm text-gray-600 mb-3">考え方のベクトルが似ているため、一緒にいて自然体でいられる関係です。</p>
-              <div className="bg-white rounded-2xl p-8 border-2 border-gray-900 shadow-[8px_8px_0_0_rgba(17,24,39,1)] text-center">
-                <div className="flex items-center justify-center gap-4 mb-6">
-                  <span className="text-3xl font-black">{results.best.p1.name.replace('(Bot)', '')}</span>
-                  <span className="text-gray-300 text-2xl">×</span>
-                  <span className="text-3xl font-black">{results.best.p2.name.replace('(Bot)', '')}</span>
-                </div>
-                <div className="inline-flex items-baseline bg-gray-100 px-8 py-3 rounded-2xl border border-gray-200">
-                  <span className="text-sm font-bold text-gray-600 mr-4">シンクロ率</span>
-                  <span className="text-5xl font-black text-gray-900">{results.best.percent}</span>
-                  <span className="text-xl font-bold ml-1">%</span>
-                </div>
+              <div className="mb-4 text-center">
+                <h3 className="font-black text-slate-800 text-2xl tracking-tight">最も価値観が近い2人</h3>
+                <p className="text-sm text-slate-500 mt-2 font-medium">考え方のベクトルが似ているため、一緒にいて自然体でいられる関係です。</p>
               </div>
-            </section>
-            <section>
-              <h3 className="font-bold text-gray-900 text-lg mb-1">最も価値観が遠い2人</h3>
-              <p className="text-sm text-gray-600 mb-3">考え方が違うため、お互いの弱点をカバーし合えるチームになれる関係です。</p>
-              <div className="bg-gray-50 rounded-2xl p-6 border-2 border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="text-2xl font-black text-gray-800">{results.worst.p1.name.replace('(Bot)', '')} <span className="text-gray-400 font-normal text-sm mx-2">vs</span> {results.worst.p2.name.replace('(Bot)', '')}</div>
-                <div className="bg-white px-4 py-2 rounded-xl border border-gray-300 font-bold text-xl text-gray-700 shadow-sm whitespace-nowrap">類似度 {results.worst.percent}<span className="text-sm ml-1">%</span></div>
-              </div>
-            </section>
-            <section>
-              <h3 className="font-bold text-gray-900 text-lg mb-1">最も独自路線を行く人</h3>
-              <p className="text-sm text-gray-600 mb-3">グループの平均値から最も外れた独自の感性を持つ、貴重な存在です。</p>
-              <div className="bg-gray-50 rounded-2xl p-6 border-2 border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="text-2xl font-black text-gray-800">{results.minority.name.replace('(Bot)', '')}</div>
-                <div className="text-right">
-                  <span className="text-xs font-bold text-gray-500 block mb-1">独自性スコア</span>
-                  <div className="bg-white px-4 py-2 rounded-xl border border-gray-300 font-bold text-xl text-gray-700 shadow-sm inline-block">{results.minority.uniquenessScore}<span className="text-sm ml-1">%</span></div>
+              <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 text-center relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 to-rose-400" />
+                <div className="flex items-center justify-center gap-4 mb-8 mt-2">
+                  <span className="text-3xl md:text-4xl font-black text-slate-800">{results.best.p1.name.replace('(Bot)', '')}</span>
+                  <span className="text-slate-300 text-3xl font-light">×</span>
+                  <span className="text-3xl md:text-4xl font-black text-slate-800">{results.best.p2.name.replace('(Bot)', '')}</span>
+                </div>
+                <div className="inline-flex items-baseline bg-slate-50 px-8 py-4 rounded-[2rem] border border-slate-100">
+                  <span className="text-sm font-black text-slate-400 mr-5 uppercase tracking-wider">Sync</span>
+                  <span className="text-6xl font-black text-indigo-600 tracking-tighter">{results.best.percent}</span>
+                  <span className="text-2xl font-bold text-indigo-400 ml-1">%</span>
                 </div>
               </div>
             </section>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <section>
+                <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 h-full flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-lg mb-2">最も価値観が遠い2人</h3>
+                    <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">考え方が違うため、お互いの弱点をカバーし合えるチームになれる関係です。</p>
+                  </div>
+                  <div className="bg-rose-50/50 rounded-2xl p-5 border border-rose-100/50">
+                    <div className="text-xl font-black text-slate-700 mb-3 text-center">{results.worst.p1.name.replace('(Bot)', '')} <span className="text-slate-300 font-normal mx-1">vs</span> {results.worst.p2.name.replace('(Bot)', '')}</div>
+                    <div className="text-center"><span className="text-xs font-bold text-rose-400 mr-2">類似度</span><span className="font-black text-2xl text-rose-500">{results.worst.percent}%</span></div>
+                  </div>
+                </div>
+              </section>
+              <section>
+                <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 h-full flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-lg mb-2">最も独自路線を行く人</h3>
+                    <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">グループの平均値から最も外れた独自の感性を持つ、貴重な存在です。</p>
+                  </div>
+                  <div className="bg-amber-50/50 rounded-2xl p-5 border border-amber-100/50 text-center">
+                    <div className="text-2xl font-black text-slate-700 mb-2">{results.minority.name.replace('(Bot)', '')}</div>
+                    <div><span className="text-xs font-bold text-amber-500 mr-2">独自性スコア</span><span className="font-black text-2xl text-amber-500">{results.minority.uniquenessScore}%</span></div>
+                  </div>
+                </div>
+              </section>
+            </div>
+
             <section>
-              <h3 className="text-lg font-bold text-gray-900 border-b-2 border-gray-200 pb-2 mb-4">参加者ごとのベストマッチ</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <h3 className="text-lg font-black text-slate-800 border-b-2 border-slate-200 pb-3 mb-5 mt-4">参加者ごとのベストマッチ</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {results.personalBests.map((pb, i) => (
-                  <div key={i} className="flex justify-between items-center p-4 bg-white rounded-xl border-2 border-gray-100 shadow-sm">
-                    <div className="font-bold text-gray-800 text-sm">{pb.me.name.replace('(Bot)', '')} <span className="text-gray-400 font-normal text-xs mx-1">の相手</span> <span className="border-b border-gray-900">{pb.partner.name.replace('(Bot)', '')}</span></div>
-                    <div className="text-sm font-black text-gray-600 bg-gray-100 px-2.5 py-1 rounded-md ml-2 whitespace-nowrap">{pb.percent}%</div>
+                  <div key={i} className="flex justify-between items-center p-5 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                    <div className="font-bold text-slate-700 text-sm">{pb.me.name.replace('(Bot)', '')} <span className="text-slate-400 font-medium text-xs mx-2">の相手</span> <span className="text-indigo-600">{pb.partner.name.replace('(Bot)', '')}</span></div>
+                    <div className="text-sm font-black text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">{pb.percent}%</div>
                   </div>
                 ))}
               </div>
             </section>
-            <section className="pt-8 border-t-2 border-dashed border-gray-300">
-              <div className="mb-8 text-center">
-                <h3 className="font-black text-gray-900 text-2xl">グループの回答分布</h3>
-                <p className="text-sm text-gray-600 mt-2">みんながどちらの回答を選んだかの割合データです。</p>
+
+            <section className="pt-10 border-t-2 border-dashed border-slate-200">
+              <div className="mb-10 text-center">
+                <h3 className="font-black text-slate-800 text-2xl tracking-tight">グループの回答分布</h3>
+                <p className="text-sm text-slate-500 mt-2 font-medium">みんながどちらの回答を選んだかの割合データです。</p>
               </div>
-              <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200 space-y-6">
+              <div className="bg-white rounded-[2rem] p-6 sm:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 space-y-8">
                 {QUESTIONS.map((q, idx) => {
                   const stats = results.questionStats[idx]
                   return (
-                    <div key={idx} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                      <p className="text-sm font-bold text-gray-900 mb-3 leading-relaxed">{q.text}</p>
-                      <div className="flex justify-between text-xs font-bold text-gray-600 mb-2 px-1">
-                        <span>{q.a} <span className="text-gray-900">({stats.aPercent}%)</span></span>
-                        <span><span className="text-gray-900">({stats.bPercent}%)</span> {q.b}</span>
+                    <div key={idx}>
+                      <p className="text-sm font-bold text-slate-800 mb-4 leading-relaxed">{q.text}</p>
+                      <div className="flex justify-between text-xs font-black text-slate-500 mb-3 px-1">
+                        <span>{q.a} <span className="text-indigo-500">({stats.aPercent}%)</span></span>
+                        <span><span className="text-rose-400">({stats.bPercent}%)</span> {q.b}</span>
                       </div>
-                      <div className="w-full h-4 bg-gray-200 rounded-full overflow-hidden flex border border-gray-300">
-                        <div style={{ width: `${stats.aPercent}%` }} className="bg-gray-800 h-full transition-all duration-1000" />
-                        <div style={{ width: `${stats.bPercent}%` }} className="bg-gray-300 h-full transition-all duration-1000" />
+                      <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex">
+                        <div style={{ width: `${stats.aPercent}%` }} className="bg-indigo-500 h-full transition-all duration-1000" />
+                        <div style={{ width: `${stats.bPercent}%` }} className="bg-rose-400 h-full transition-all duration-1000" />
                       </div>
                     </div>
                   )
@@ -517,9 +562,13 @@ export default function Home() {
               </div>
             </section>
           </div>
-          <div className="mt-16 flex flex-col gap-4 max-w-sm mx-auto">
-            <button onClick={() => setShowMethodology(true)} className="text-sm font-bold text-gray-500 hover:text-gray-800 underline underline-offset-4 text-center">開発者の想いとアルゴリズムの裏側を見る</button>
-            <button onClick={completelyResetGame} className="w-full py-5 bg-gray-900 text-white rounded-2xl font-bold text-lg hover:bg-gray-800 active:scale-95 transition-transform shadow-[4px_4px_0_0_rgba(156,163,175,1)]">最初からもう一度遊ぶ</button>
+
+          <div className="mt-16 flex flex-col gap-5 max-w-sm mx-auto">
+            <button onClick={() => setShowMethodology(true)} className="text-sm font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center justify-center gap-2 mx-auto">
+              <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs text-white">i</span>
+              開発者の想いとアルゴリズム
+            </button>
+            <button onClick={completelyResetGame} className="w-full py-5 bg-slate-800 text-white rounded-2xl font-bold text-lg hover:bg-slate-900 active:scale-[0.98] transition-all shadow-lg">最初からもう一度遊ぶ</button>
           </div>
         </div>
       </div>
@@ -528,3 +577,15 @@ export default function Home() {
 
   return null
 }
+```
+
+---
+
+### 2. GitHubにプッシュするためのコマンド
+
+VS Codeのターミナルを開き（ショートカット：`Ctrl` + `@`）、以下の3行を順番に入力してエンターを押してください。
+
+```bash
+git add .
+git commit -m "fix: ルーム作成時の参加者表示バグの修正、UIの洗練化、開発者アイコンの追加"
+git push origin main

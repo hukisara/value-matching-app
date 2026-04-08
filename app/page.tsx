@@ -54,15 +54,21 @@ export default function Home() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // 修正: 初期データ読み込みとリアルタイム通信を分離してバグを解消
   useEffect(() => {
     if (!userId) return
+    let mounted = true
+    
     const fetchInitial = async () => {
       const [roomsRes, partsRes] = await Promise.all([
         supabase.from('rooms').select('*'),
         supabase.from('participants').select('*'),
       ])
-      const fetchedRooms: Room[] = roomsRes.data ?? []
-      const fetchedParts: Participant[] = partsRes.data ?? []
+      if (!mounted) return
+
+      const fetchedRooms = roomsRes.data ?? []
+      const fetchedParts = partsRes.data ?? []
+      
       setRooms(fetchedRooms)
       setParticipants(fetchedParts)
 
@@ -94,34 +100,39 @@ export default function Home() {
       }
     }
     fetchInitial()
+    return () => { mounted = false }
+  }, [userId]) // isRestoringを依存配列から除外し、不要な再読み込みを防ぐ
 
+  // リアルタイム通信専用のリスナー（安定化）
+  useEffect(() => {
+    if (!userId) return
     const channel = supabase
-      .channel('app-realtime')
+      .channel(`realtime-updates-${userId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, (payload) => {
         setRooms((prev) => {
           if (payload.eventType === 'INSERT') {
-            if (prev.some(r => r.id === (payload.new as Room).id)) return prev;
+            if (prev.some(r => r.id === payload.new.id)) return prev;
             return [...prev, payload.new as Room]
           }
-          if (payload.eventType === 'UPDATE') return prev.map((r) => r.id === (payload.new as Room).id ? payload.new as Room : r)
-          if (payload.eventType === 'DELETE') return prev.filter((r) => r.id !== (payload.old as Room).id)
+          if (payload.eventType === 'UPDATE') return prev.map((r) => r.id === payload.new.id ? payload.new as Room : r)
+          if (payload.eventType === 'DELETE') return prev.filter((r) => r.id !== payload.old.id)
           return prev
         })
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, (payload) => {
         setParticipants((prev) => {
           if (payload.eventType === 'INSERT') {
-            if (prev.some(p => p.id === (payload.new as Participant).id)) return prev;
+            if (prev.some(p => p.id === payload.new.id)) return prev;
             return [...prev, payload.new as Participant]
           }
-          if (payload.eventType === 'UPDATE') return prev.map((p) => p.id === (payload.new as Participant).id ? payload.new as Participant : p)
-          if (payload.eventType === 'DELETE') return prev.filter((p) => p.id !== (payload.old as Participant).id)
+          if (payload.eventType === 'UPDATE') return prev.map((p) => p.id === payload.new.id ? payload.new as Participant : p)
+          if (payload.eventType === 'DELETE') return prev.filter((p) => p.id !== payload.old.id)
           return prev
         })
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [userId, isRestoring])
+  }, [userId])
 
   const currentRoom = useMemo(() => rooms.find((r) => r.code === roomCode), [rooms, roomCode])
   const roomParticipants = useMemo(() => participants.filter((p) => p.room_code === roomCode), [participants, roomCode])
@@ -208,7 +219,6 @@ export default function Home() {
   const addDummyUsers = useCallback(async () => {
     if (!currentRoom) return
     const dummies = ['あきら(Bot)', 'サヤカ(Bot)', 'ケンジ(Bot)', 'マイ(Bot)'].map((name) => {
-      // エラー対策: crypto.randomUUIDがない環境でも安全にIDを発行
       const randomStr = typeof crypto.randomUUID === 'function' ? crypto.randomUUID().slice(0, 9) : Math.random().toString(36).substring(2, 11);
       return {
         user_id: `dummy-${randomStr}`,
@@ -666,10 +676,9 @@ export default function Home() {
 
   if (currentView === 'CALCULATING') return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center">
-      <div className="relative w-24 h-24 mb-8 flex justify-center items-center">
-        <div className="absolute inset-0 border-4 border-slate-200 rounded-full" />
+      <div className="relative w-20 h-20 mb-8 flex justify-center items-center">
+        <div className="absolute inset-0 border-4 border-indigo-100 rounded-full" />
         <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin" />
-        <span className="text-2xl animate-pulse">🧠</span>
       </div>
       <h2 className="text-2xl font-black text-slate-800 mb-2 tracking-widest">解析中...</h2>
       <p className="text-sm text-slate-500 font-medium">多次元ベクトル空間での距離を測定しています</p>

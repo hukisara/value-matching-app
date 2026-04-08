@@ -24,6 +24,7 @@ export default function Home() {
 
   const [errorMsg, setErrorMsg] = useState('')
   const [showMethodology, setShowMethodology] = useState(false)
+  const [showAlgorithm, setShowAlgorithm] = useState(false)
   const [copySuccess, setCopySuccess] = useState('')
   const [isRestoring, setIsRestoring] = useState(true)
   const [columnIdx, setColumnIdx] = useState(0)
@@ -225,7 +226,7 @@ export default function Home() {
 
   const completelyResetGame = useCallback(() => {
     setRoomCode(''); setJoinCodeInput(''); setLocalAnswers([]); setCurrentQIdx(0)
-    setIsHost(false); setUserName(''); setCurrentView('NAME_INPUT'); setShowMethodology(false); setIsRestoring(false)
+    setIsHost(false); setUserName(''); setCurrentView('NAME_INPUT'); setShowMethodology(false); setShowAlgorithm(false); setIsRestoring(false)
   }, [])
 
   if (!userId || isRestoring) return (
@@ -248,12 +249,18 @@ export default function Home() {
   )
 
   const DeveloperCredit = () => (
-    <div className="text-center mt-10 flex flex-col items-center gap-3 pb-8">
-      <button onClick={() => setShowMethodology(true)} className="text-sm font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center justify-center gap-2 mx-auto">
-        <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs text-white">i</span>
-        開発者の想いとアルゴリズム
-      </button>
-      <div className="flex items-center gap-2 mt-3 opacity-70 hover:opacity-100 transition-opacity">
+    <div className="text-center mt-10 flex flex-col items-center gap-5 pb-8">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <button onClick={() => setShowMethodology(true)} className="text-sm font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center justify-center gap-2">
+          <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs text-white">i</span>
+          開発者の想い
+        </button>
+        <button onClick={() => setShowAlgorithm(true)} className="text-sm font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center justify-center gap-2">
+          <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs text-white">⚙️</span>
+          アルゴリズムと理論（コラム）
+        </button>
+      </div>
+      <div className="flex items-center justify-center gap-2 mt-2 opacity-70 hover:opacity-100 transition-opacity">
         <div className="w-5 h-5 rounded-full overflow-hidden shadow-sm border border-slate-200">
           <img src="/icon-dt.png" alt="D.T." className="w-full h-full object-cover" />
         </div>
@@ -271,39 +278,54 @@ export default function Home() {
         
         <div className="text-center mb-8 mt-2">
           <div className="w-20 h-20 mx-auto mb-4 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100">
-             <img src="/icon-dt.png" alt="Algorithm by D.T." className="w-full h-full object-cover"/>
+             <img src="/icon-dt.png" alt="Developer" className="w-full h-full object-cover"/>
           </div>
-          <h3 className="text-2xl font-black text-slate-800 tracking-tight">開発者の想いと裏側</h3>
-          <p className="text-xs font-bold text-slate-400 mt-2 tracking-widest uppercase">Algorithm by D.T.</p>
+          <h3 className="text-2xl font-black text-slate-800 tracking-tight">開発者の想い</h3>
+          <p className="text-xs font-bold text-slate-400 mt-2 tracking-widest uppercase">By D.T.</p>
         </div>
 
         <div className="space-y-6 text-sm text-slate-600 leading-relaxed max-h-[50vh] overflow-y-auto pr-3">
-          <div className="mb-8">
-            <h4 className="font-black text-slate-800 text-lg mb-3">なぜこのアプリを作ったのか？</h4>
-            <div className="space-y-3">
-              <p>友人同士の集まりや新しいチームで、「なんとなく気が合う」「なんだか合わない」と感じることってありませんか？これを言語化しようと思い、心理学や統計学で分析するアプリを作りました。</p>
-              <p>「価値観が違う＝相性が悪い」とネガティブに捉えられがちですが、実は違うと思うんです。</p>
-              <p>自分とは真逆の考えを持つ人は、自分にない視点を提供してくれる<strong>最高のパートナー</strong>になる可能性を秘めています。</p>
-              <p>みんなの違いを「優劣」ではなく「面白さ」として可視化できたら、もっと会話が弾むんじゃないか。そんな想いでこのアプリを開発しました。</p>
-            </div>
+          <div className="space-y-4">
+            <p>友人同士の集まりや新しいチームで、「なんとなく気が合う」「なんだか合わない」と感じることってありませんか？これを言語化しようと思い、心理学や統計学で分析するアプリを作りました。</p>
+            <p>「価値観が違う＝相性が悪い」とネガティブに捉えられがちですが、実は違うと思うんです。</p>
+            <p>自分とは真逆の考えを持つ人は、自分にない視点を提供してくれる<strong className="text-indigo-600">最高のパートナー</strong>になる可能性を秘めています。</p>
+            <p>みんなの違いを「優劣」ではなく「面白さ」として可視化できたら、もっと会話が弾むんじゃないか。そんな想いでこのアプリを開発しました。</p>
           </div>
+        </div>
+      </div>
+    </div>
+  )
 
+  const AlgorithmModal = () => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-white rounded-[2rem] max-w-lg w-full relative my-8 p-6 sm:p-8 shadow-2xl">
+        <button onClick={() => setShowAlgorithm(false)} className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition-colors">✕</button>
+        
+        <div className="text-center mb-8 mt-2">
+          <h3 className="text-2xl font-black text-slate-800 tracking-tight">アルゴリズムと理論</h3>
+        </div>
+
+        <div className="space-y-6 text-sm text-slate-600 leading-relaxed max-h-[60vh] overflow-y-auto pr-3">
           <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-            <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <span className="text-lg">💡</span> 心理学とアルゴリズムの裏側
+            <h4 className="font-bold text-slate-800 mb-5 flex items-center gap-2 border-b border-slate-200 pb-4">
+              <span className="text-xl">💡</span> 心理学とアルゴリズムの裏側
             </h4>
-            <ul className="space-y-5">
+            <ul className="space-y-6">
               <li>
-                <strong className="text-slate-800 block mb-1">1. 心理学ベースの設問設計</strong>
-                世界的に信頼されている性格分析「ビッグファイブ」や、パートナー関係の長続きを説く「コンフリクト理論」などをベースに質問を構成しています。
+                <strong className="text-indigo-600 block mb-1">ビッグファイブ理論</strong>
+                心理学において最も信頼性が高いとされる性格分析理論です。「開放性・誠実性・外向性・協調性・神経症的傾向」の5つの次元から、人間の性格を科学的に浮き彫りにします。
               </li>
               <li>
-                <strong className="text-slate-800 block mb-1">2. 価値観が近い2人</strong>
-                単なる「一致数」ではなく、全員の回答を多次元ベクトル（矢印）に見立て、その向きの近さを「コサイン類似度」という計算式で弾き出しています。
+                <strong className="text-rose-500 block mb-1">ゴットマンのコンフリクト理論</strong>
+                夫婦やカップルの破局を予測する研究で知られる理論です。喧嘩の「原因」ではなく、「解決スタイル（その場で話し合うか、時間を置くか）」が一致しているかが、関係の長続きには重要とされています。
               </li>
               <li>
-                <strong className="text-slate-800 block mb-1">3. 価値観が遠い2人</strong>
-                考え方が一番かけ離れているペアです。心理学の「相補性」に基づき、お互いの弱点を補い合える「最強の相互補完ペア」として評価しています。
+                <strong className="text-slate-800 block mb-1">多次元ベクトルとコサイン類似度</strong>
+                単なる「一致数」ではなく、全員の回答を多次元空間のベクトル（矢印）に見立て、その向きの近さを「コサイン類似度」という計算式で弾き出しています。
+              </li>
+              <li>
+                <strong className="text-amber-500 block mb-1">相互補完性と独自性</strong>
+                考え方が一番かけ離れているペアはお互いの弱点を補い合える「最強の相互補完ペア」に。また、グループ全員の平均値から一番遠い回答をした人は「独自路線を行く人」として評価します。
               </li>
             </ul>
           </div>
@@ -311,6 +333,8 @@ export default function Home() {
       </div>
     </div>
   )
+
+  // --- Views ---
 
   if (currentView === 'NAME_INPUT') return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">
@@ -350,6 +374,7 @@ export default function Home() {
         <DeveloperCredit />
       </div>
       {showMethodology && <MethodologyModal />}
+      {showAlgorithm && <AlgorithmModal />}
     </div>
   )
 
@@ -385,6 +410,8 @@ export default function Home() {
         </div>
         <DeveloperCredit />
       </div>
+      {showMethodology && <MethodologyModal />}
+      {showAlgorithm && <AlgorithmModal />}
     </div>
   )
 
@@ -531,9 +558,10 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-slate-50 text-slate-800 font-sans py-10 px-4">
         {showMethodology && <MethodologyModal />}
+        {showAlgorithm && <AlgorithmModal />}
         <div className="max-w-3xl w-full mx-auto pb-10">
           <div className="text-center mb-12">
-            <span className="text-xs font-black text-slate-500 tracking-[0.2em] uppercase mb-3 block">Analysis Result</span>
+            <span className="text-xs font-black text-indigo-500 tracking-[0.2em] uppercase mb-3 block">Analysis Result</span>
             <h1 className="text-4xl md:text-5xl font-black text-slate-800 tracking-tight">診断結果</h1>
           </div>
           <div className="space-y-10">
@@ -608,7 +636,6 @@ export default function Home() {
                     <div key={idx} className="border-b border-slate-100 pb-8 last:border-0 last:pb-0">
                       <p className="text-sm font-bold text-slate-800 mb-5 leading-relaxed">{q.text}</p>
                       
-                      {/* 長いテキストでも見やすい縦並びレイアウトに変更 */}
                       <div className="flex flex-col gap-3 mb-4">
                         <div className="flex justify-between items-start text-xs">
                           <span className="w-4/5 pr-3 text-slate-600 font-bold leading-relaxed">{q.a}</span>

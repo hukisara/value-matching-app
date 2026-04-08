@@ -61,9 +61,11 @@ export default function Home() {
           .filter((p) => p.user_id === userId)
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         const myLatestPart = myParts[0]
+        
         if (myLatestPart) {
           const relatedRoom = fetchedRooms.find((r) => r.code === myLatestPart.room_code)
-          if (relatedRoom && relatedRoom.status !== 'finished_completely') {
+          // 修正: 過去の部屋がすでに「結果画面」になっていたら復元せず、新規スタートさせる
+          if (relatedRoom && relatedRoom.status !== 'result' && relatedRoom.status !== 'finished_completely') {
             setRoomCode(myLatestPart.room_code)
             setUserName(myLatestPart.name)
             setIsHost(relatedRoom.host_id === userId)
@@ -203,9 +205,10 @@ export default function Home() {
   }, [currentRoom])
 
   const startGame = useCallback(async () => {
-    if (!isHost || !currentRoom) return
+    // 修正: 誰でもスタートできるように isHost 制限を解除
+    if (!currentRoom) return
     await supabase.from('rooms').update({ status: 'playing' }).eq('id', currentRoom.id)
-  }, [isHost, currentRoom])
+  }, [currentRoom])
 
   const handleAnswer = useCallback(async (value: number) => {
     const newAnswers = [...localAnswers, value]
@@ -220,14 +223,40 @@ export default function Home() {
   }, [localAnswers, me])
 
   const triggerCalculation = useCallback(async () => {
-    if (!isHost || !currentRoom) return
+    // 修正: 誰でも解析スタートできるように isHost 制限を解除
+    if (!currentRoom) return
     await supabase.from('rooms').update({ status: 'calculating' }).eq('id', currentRoom.id)
-  }, [isHost, currentRoom])
+  }, [currentRoom])
 
   const completelyResetGame = useCallback(() => {
     setRoomCode(''); setJoinCodeInput(''); setLocalAnswers([]); setCurrentQIdx(0)
     setIsHost(false); setUserName(''); setCurrentView('NAME_INPUT'); setShowMethodology(false); setShowAlgorithm(false); setIsRestoring(false)
   }, [])
+
+  // --- 2D Map Projection Logic ---
+  const generate2DMapData = useCallback((parts: Participant[]) => {
+    // 8つの質問を円周上の角度（0度〜315度）に割り当てて2次元のX,Y座標に変換するロジック
+    const angles = [0, 45, 90, 135, 180, 225, 270, 315].map(deg => deg * (Math.PI / 180));
+    let maxAbs = 0.1; 
+    const finishedParts = parts.filter(p => p.is_finished && Array.isArray(p.answers) && p.answers.length === QUESTIONS.length);
+    
+    const mapped = finishedParts.map(p => {
+      let x = 0; let y = 0;
+      (p.answers as number[]).forEach((ans, i) => {
+        x += ans * Math.cos(angles[i]);
+        y += ans * Math.sin(angles[i]);
+      });
+      maxAbs = Math.max(maxAbs, Math.abs(x), Math.abs(y));
+      return { id: p.id, name: p.name, x, y, isMe: p.user_id === userId };
+    });
+
+    return mapped.map(p => ({
+      ...p,
+      nx: (p.x / maxAbs) * 100, 
+      ny: (p.y / maxAbs) * 100
+    }));
+  }, [userId]);
+
 
   if (!userId || isRestoring) return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center gap-5">
@@ -257,7 +286,7 @@ export default function Home() {
         </button>
         <button onClick={() => setShowAlgorithm(true)} className="text-sm font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center justify-center gap-2">
           <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs text-white">⚙️</span>
-          アルゴリズムと理論（コラム）
+          アルゴリズムと理論
         </button>
       </div>
       <div className="flex items-center justify-center gap-2 mt-2 opacity-70 hover:opacity-100 transition-opacity">
@@ -391,7 +420,7 @@ export default function Home() {
           {errorMsg && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold text-center border border-rose-100">{errorMsg}</div>}
           <div className="space-y-8">
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">新しく始める（幹事用）</label>
+              <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">新しく始める</label>
               <button onClick={handleCreateRoom} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">新しくルームを作る</button>
             </div>
             <div className="relative py-2">
@@ -420,15 +449,15 @@ export default function Home() {
       <div className="max-w-md w-full mx-auto flex flex-col items-center flex-grow justify-center">
         <span className="text-sm font-bold text-slate-400 mb-2 tracking-widest uppercase">Room PIN</span>
         <div className="text-6xl sm:text-7xl font-black tracking-widest text-indigo-600 mb-6 font-mono drop-shadow-sm">{roomCode}</div>
-        {isHost && (
-          <div className="mb-10 w-full text-center">
-            <button onClick={copyInviteText} className="inline-flex items-center gap-2 bg-white text-slate-600 font-bold py-3 px-6 rounded-full shadow-sm border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 transition-all text-sm active:scale-95">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-              招待テキストとURLをコピー
-            </button>
-            {copySuccess && <p className="text-xs text-emerald-500 font-bold mt-3 animate-pulse">{copySuccess}</p>}
-          </div>
-        )}
+        
+        <div className="mb-10 w-full text-center">
+          <button onClick={copyInviteText} className="inline-flex items-center gap-2 bg-white text-slate-600 font-bold py-3 px-6 rounded-full shadow-sm border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 transition-all text-sm active:scale-95">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+            招待テキストとURLをコピー
+          </button>
+          {copySuccess && <p className="text-xs text-emerald-500 font-bold mt-3 animate-pulse">{copySuccess}</p>}
+        </div>
+        
         <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-xl shadow-slate-200/50 border border-slate-100 w-full mb-8">
           <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-4">
             <h3 className="text-base font-bold text-slate-800">参加メンバー</h3>
@@ -449,18 +478,14 @@ export default function Home() {
               </li>
             ))}
           </ul>
-          {isHost && <button onClick={addDummyUsers} className="w-full py-4 mt-6 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 text-sm font-bold hover:bg-slate-50 hover:text-indigo-500 hover:border-indigo-200 transition-colors">+ テスト用メンバーを追加</button>}
+          <button onClick={addDummyUsers} className="w-full py-4 mt-6 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 text-sm font-bold hover:bg-slate-50 hover:text-indigo-500 hover:border-indigo-200 transition-colors">+ テスト用メンバーを追加</button>
         </div>
-        {isHost ? (
-          <button onClick={startGame} disabled={roomParticipants.length < 2}
-            className={`w-full py-5 rounded-2xl font-bold text-lg transition-all active:scale-[0.98] ${roomParticipants.length < 2 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200'}`}>
-            {roomParticipants.length < 2 ? '2人以上で開始できます' : '診断をスタート'}
-          </button>
-        ) : (
-          <div className="w-full py-5 text-center text-slate-500 font-bold bg-white rounded-2xl shadow-sm border border-slate-100 flex justify-center items-center gap-3">
-            <div className="w-5 h-5 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />幹事のスタートを待っています...
-          </div>
-        )}
+        
+        <button onClick={startGame} disabled={roomParticipants.length < 2}
+          className={`w-full py-5 rounded-2xl font-bold text-lg transition-all active:scale-[0.98] ${roomParticipants.length < 2 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200'}`}>
+          {roomParticipants.length < 2 ? '2人以上で開始できます' : '全員揃ったらスタート'}
+        </button>
+        <p className="text-xs font-bold text-slate-400 mt-3">※参加者なら誰でもスタートボタンを押せます</p>
       </div>
       <ResetButton />
     </div>
@@ -524,7 +549,8 @@ export default function Home() {
             <h4 className="font-bold text-slate-800 mb-2">{col.title}</h4>
             <p className="text-xs text-slate-600 leading-relaxed">{col.text}</p>
           </div>
-          {isHost && allFinished && (
+          
+          {allFinished && (
             <button onClick={triggerCalculation} className="mt-10 w-full py-5 rounded-2xl bg-indigo-600 text-white font-bold text-xl hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">結果を解析する</button>
           )}
         </div>
@@ -555,6 +581,10 @@ export default function Home() {
         </div>
       </div>
     )
+
+    // 新機能: 2Dマップ用のデータ生成
+    const mapData = generate2DMapData(roomParticipants);
+
     return (
       <div className="min-h-screen bg-slate-50 text-slate-800 font-sans py-10 px-4">
         {showMethodology && <MethodologyModal />}
@@ -565,6 +595,43 @@ export default function Home() {
             <h1 className="text-4xl md:text-5xl font-black text-slate-800 tracking-tight">診断結果</h1>
           </div>
           <div className="space-y-10">
+
+            {/* ① 新機能: 価値観分布マップ (2D Scatter Plot) */}
+            <section>
+              <div className="mb-4 text-center">
+                <h3 className="font-black text-slate-800 text-2xl tracking-tight">価値観分布マップ</h3>
+                <p className="text-sm text-slate-500 mt-2 font-medium">8次元のデータを2次元に圧縮。近い人ほど価値観が似ています。</p>
+              </div>
+              <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 relative">
+                <div className="relative w-full aspect-square max-w-md mx-auto bg-slate-50/50 rounded-xl border border-slate-200 overflow-hidden">
+                  {/* Grid lines & Labels */}
+                  <div className="absolute top-1/2 left-0 w-full h-px bg-slate-200" />
+                  <div className="absolute top-0 left-1/2 w-px h-full bg-slate-200" />
+                  <div className="absolute top-1/2 left-1/2 w-full h-full border border-slate-100 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
+                  <div className="absolute top-1/2 left-1/2 w-1/2 h-1/2 border border-slate-100 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
+                  
+                  <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">柔軟・直感</div>
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">規律・計画</div>
+                  <div className="absolute top-1/2 left-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">保守的</div>
+                  <div className="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">革新的</div>
+
+                  {/* Scatter Points */}
+                  {mapData.map(p => (
+                    <div
+                      key={p.id}
+                      className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-1000 ease-out"
+                      style={{ left: `${50 + p.nx * 0.4}%`, top: `${50 - p.ny * 0.4}%` }}
+                    >
+                      <div className={`rounded-full border-2 shadow-sm ${p.isMe ? 'bg-indigo-500 border-white w-5 h-5 z-10 ring-2 ring-indigo-200' : 'bg-emerald-400 border-white w-4 h-4'}`} />
+                      <span className={`text-[10px] font-bold mt-1 px-2 py-0.5 rounded shadow-sm whitespace-nowrap ${p.isMe ? 'bg-indigo-600 text-white z-10' : 'bg-white text-slate-600'}`}>
+                        {p.name.replace('(Bot)', '')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
             <section>
               <div className="mb-4 text-center">
                 <h3 className="font-black text-slate-800 text-2xl tracking-tight">最も価値観が近い2人</h3>

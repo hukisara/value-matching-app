@@ -104,9 +104,9 @@ export default function Home() {
 
   useEffect(() => {
     if (!userId) return
-    // 修正: チャンネルを全員共通の 'app-realtime' に戻すことで、他人の入室や更新を確実にキャッチする
+    // 修正: チャンネル名にタイムスタンプを入れて完全にユニークにし、通信の競合や切断バグを防ぐ
     const channel = supabase
-      .channel('app-realtime')
+      .channel(`sync-${userId}-${Date.now()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, (payload) => {
         setRooms((prev) => {
           if (payload.eventType === 'INSERT') {
@@ -228,7 +228,6 @@ export default function Home() {
       };
     })
     
-    // 修正: 挿入したデータをすぐにローカルに反映させる（爆速UX）
     const { data, error } = await supabase.from('participants').insert(dummies).select()
     if (!error && data) {
       setParticipants(prev => {
@@ -243,6 +242,8 @@ export default function Home() {
 
   const startGame = useCallback(async () => {
     if (!currentRoom) return
+    // 修正: ボタンを押した瞬間にローカルの画面を切り替える（爆速UX）
+    setRooms(prev => prev.map(r => r.id === currentRoom.id ? { ...r, status: 'playing' } : r))
     await supabase.from('rooms').update({ status: 'playing' }).eq('id', currentRoom.id)
   }, [currentRoom])
 
@@ -251,15 +252,24 @@ export default function Home() {
     setLocalAnswers(newAnswers)
     if (newAnswers.length < QUESTIONS.length) {
       setCurrentQIdx((idx) => idx + 1)
-      if (me) supabase.from('participants').update({ answers: newAnswers }).eq('id', me.id).then()
+      if (me) {
+        // ローカルの状態を瞬時に更新
+        setParticipants(prev => prev.map(p => p.id === me.id ? { ...p, answers: newAnswers } : p))
+        supabase.from('participants').update({ answers: newAnswers }).eq('id', me.id).then()
+      }
     } else {
       setCurrentView('WAITING')
-      if (me) await supabase.from('participants').update({ answers: newAnswers, is_finished: true }).eq('id', me.id)
+      if (me) {
+        setParticipants(prev => prev.map(p => p.id === me.id ? { ...p, answers: newAnswers, is_finished: true } : p))
+        await supabase.from('participants').update({ answers: newAnswers, is_finished: true }).eq('id', me.id)
+      }
     }
   }, [localAnswers, me])
 
   const triggerCalculation = useCallback(async () => {
     if (!currentRoom) return
+    // 修正: 計算開始もローカルで即座に反映させる
+    setRooms(prev => prev.map(r => r.id === currentRoom.id ? { ...r, status: 'calculating' } : r))
     await supabase.from('rooms').update({ status: 'calculating' }).eq('id', currentRoom.id)
   }, [currentRoom])
 
@@ -365,15 +375,12 @@ export default function Home() {
       return { id: p.id, name: p.name, x, y, title, isMe: p.user_id === userId, labelOffsetY: 18 };
     });
 
-    // 物理シミュレーションによる重なり回避（斥力モデル）
     mapped = mapped.map(p => ({
       ...p,
-      // ランダムな揺らぎ（ジッター）を入れて、完全に一致した人が完全に重なるのを防ぐ
       nx: (p.x / maxAbs) * 100 + (Math.random() - 0.5) * 8, 
       ny: (p.y / maxAbs) * 100 + (Math.random() - 0.5) * 8
     }));
 
-    // 反発アルゴリズム（近い点同士を弾き離す）
     for (let iter = 0; iter < 30; iter++) {
       for (let i = 0; i < mapped.length; i++) {
         for (let j = i + 1; j < mapped.length; j++) {
@@ -386,7 +393,6 @@ export default function Home() {
             dist = 1;
           }
           
-          // 距離が20%以内なら反発させる
           const minDist = 20;
           if (dist < minDist) {
             const force = (minDist - dist) / dist * 0.4;
@@ -399,7 +405,6 @@ export default function Home() {
       }
     }
 
-    // 枠外にはみ出さないようにガード
     mapped.forEach(p => {
       p.nx = Math.max(-85, Math.min(85, p.nx));
       p.ny = Math.max(-85, Math.min(85, p.ny));

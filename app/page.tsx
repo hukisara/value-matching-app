@@ -29,6 +29,17 @@ export default function Home() {
   const [isRestoring, setIsRestoring] = useState(true)
   const [columnIdx, setColumnIdx] = useState(0)
 
+  // プロ目線の追加機能: URLからのディープリンク（自動パスコード入力）
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const roomParam = params.get('room')
+      if (roomParam) {
+        setJoinCodeInput(roomParam)
+      }
+    }
+  }, [])
+
   useEffect(() => {
     const initAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -62,7 +73,10 @@ export default function Home() {
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         const myLatestPart = myParts[0]
         
-        if (myLatestPart) {
+        // 修正: 過去12時間以内のデータのみを有効とし、古いキャッシュに引っ張られないようにする
+        const isRecent = myLatestPart && (Date.now() - new Date(myLatestPart.created_at).getTime() < 12 * 60 * 60 * 1000)
+
+        if (isRecent) {
           const relatedRoom = fetchedRooms.find((r) => r.code === myLatestPart.room_code)
           // 修正: 過去の部屋がすでに「結果画面」になっていたら復元せず、新規スタートさせる
           if (relatedRoom && relatedRoom.status !== 'result' && relatedRoom.status !== 'finished_completely') {
@@ -184,7 +198,9 @@ export default function Home() {
 
   const copyInviteText = useCallback(() => {
     const baseUrl = window.location.href.split('?')[0].split('#')[0]
-    const text = `価値観マッチングに参加しよう！\nURL: ${baseUrl}\nパスコード: 【 ${roomCode} 】`
+    // ディープリンク対応のURLを発行
+    const inviteUrl = `${baseUrl}?room=${roomCode}`
+    const text = `価値観マッチングに参加しよう！\nURL: ${inviteUrl}\nパスコード: 【 ${roomCode} 】`
     const el = document.createElement('textarea')
     el.value = text; el.style.position = 'absolute'; el.style.left = '-999999px'
     document.body.appendChild(el); el.select()
@@ -205,7 +221,6 @@ export default function Home() {
   }, [currentRoom])
 
   const startGame = useCallback(async () => {
-    // 修正: 誰でもスタートできるように isHost 制限を解除
     if (!currentRoom) return
     await supabase.from('rooms').update({ status: 'playing' }).eq('id', currentRoom.id)
   }, [currentRoom])
@@ -223,38 +238,79 @@ export default function Home() {
   }, [localAnswers, me])
 
   const triggerCalculation = useCallback(async () => {
-    // 修正: 誰でも解析スタートできるように isHost 制限を解除
     if (!currentRoom) return
     await supabase.from('rooms').update({ status: 'calculating' }).eq('id', currentRoom.id)
   }, [currentRoom])
 
-  const completelyResetGame = useCallback(() => {
+  // 再アクセスバグの完全解消: リセット時に新しい匿名IDを発行して縁を切る
+  const completelyResetGame = useCallback(async () => {
     setRoomCode(''); setJoinCodeInput(''); setLocalAnswers([]); setCurrentQIdx(0)
     setIsHost(false); setUserName(''); setCurrentView('NAME_INPUT'); setShowMethodology(false); setShowAlgorithm(false); setIsRestoring(false)
+    
+    // 現在のセッションを破棄し、新しいユーザーとしてやり直す
+    await supabase.auth.signOut()
+    const { data } = await supabase.auth.signInAnonymously()
+    setUserId(data.user?.id ?? null)
+    
+    // URLのパラメータも消去してクリーンにする
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
   }, [])
 
-  // --- 2D Map Projection Logic ---
+  // --- ガチ仕様: 2D Map Projection Logic ---
   const generate2DMapData = useCallback((parts: Participant[]) => {
-    // 8つの質問を円周上の角度（0度〜315度）に割り当てて2次元のX,Y座標に変換するロジック
-    const angles = [0, 45, 90, 135, 180, 225, 270, 315].map(deg => deg * (Math.PI / 180));
+    // 心理学に基づいた各質問の2次元マッピング重み付け（PCAアプローチ）
+    // X軸(社会性/変化): 革新的・アクティブ(+1) vs 保守的・パッシブ(-1)
+    // Y軸(規律/関係): 規律・論理的(+1) vs 柔軟・共感的(-1)
+    const weights = [
+      { x: 1, y: 0 },    // Q1(開放性): 革新(+1)
+      { x: 0, y: -1 },   // Q2(誠実性): 柔軟(-1)
+      { x: 1, y: 0 },    // Q3(外向性): ワイワイ(+1)
+      { x: 0, y: 1 },    // Q4(協調性): 主張(+1) -> 論理・独立
+      { x: -1, y: 1 },   // Q5(不安耐性): 不安(+1) -> 保守的(-1), 計画的(+1)
+      { x: 1, y: -1 },   // Q6(衝突回避): 表出(+1) -> アクティブ(+1), 感情・柔軟(-1)
+      { x: 1, y: 0 },    // Q7(金銭感覚): リスク(+1)
+      { x: -1, y: 1 },   // Q8(境界線): 境界NG(+1) -> 保守的(-1), 規律的(+1)
+    ];
+
     let maxAbs = 0.1; 
     const finishedParts = parts.filter(p => p.is_finished && Array.isArray(p.answers) && p.answers.length === QUESTIONS.length);
     
-    const mapped = finishedParts.map(p => {
+    let mapped = finishedParts.map(p => {
       let x = 0; let y = 0;
       (p.answers as number[]).forEach((ans, i) => {
-        x += ans * Math.cos(angles[i]);
-        y += ans * Math.sin(angles[i]);
+        // 回答(1 or -1) に 重みを掛けて加算
+        x += ans * weights[i].x;
+        y += ans * weights[i].y;
       });
       maxAbs = Math.max(maxAbs, Math.abs(x), Math.abs(y));
-      return { id: p.id, name: p.name, x, y, isMe: p.user_id === userId };
+      return { id: p.id, name: p.name, x, y, isMe: p.user_id === userId, labelOffsetY: 0 };
     });
 
-    return mapped.map(p => ({
+    // 値を -100% ~ 100% の範囲に正規化
+    mapped = mapped.map(p => ({
       ...p,
       nx: (p.x / maxAbs) * 100, 
       ny: (p.y / maxAbs) * 100
     }));
+
+    // ★名前被り（重なり）回避アルゴリズム
+    for (let i = 0; i < mapped.length; i++) {
+      for (let j = i + 1; j < mapped.length; j++) {
+        const dx = mapped[i].nx - mapped[j].nx;
+        const dy = mapped[i].ny - mapped[j].ny;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        // 点同士の距離が近すぎる場合（15%以内）
+        if (dist < 15) {
+          // ラベルのY座標（高さ）を交互にずらして重なりを防ぐ
+          mapped[i].labelOffsetY -= 12;
+          mapped[j].labelOffsetY += 12;
+        }
+      }
+    }
+
+    return mapped;
   }, [userId]);
 
 
@@ -420,7 +476,7 @@ export default function Home() {
           {errorMsg && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold text-center border border-rose-100">{errorMsg}</div>}
           <div className="space-y-8">
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">新しく始める</label>
+              <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">新しく始める（幹事用）</label>
               <button onClick={handleCreateRoom} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">新しくルームを作る</button>
             </div>
             <div className="relative py-2">
@@ -610,10 +666,11 @@ export default function Home() {
                   <div className="absolute top-1/2 left-1/2 w-full h-full border border-slate-100 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
                   <div className="absolute top-1/2 left-1/2 w-1/2 h-1/2 border border-slate-100 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
                   
-                  <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">柔軟・直感</div>
-                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">規律・計画</div>
-                  <div className="absolute top-1/2 left-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">保守的</div>
-                  <div className="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">革新的</div>
+                  {/* 学術的に妥当な軸ラベルに変更 */}
+                  <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">規律・論理的</div>
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">柔軟・共感的</div>
+                  <div className="absolute top-1/2 left-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">保守・パッシブ</div>
+                  <div className="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">革新・アクティブ</div>
 
                   {/* Scatter Points */}
                   {mapData.map(p => (
@@ -622,8 +679,12 @@ export default function Home() {
                       className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-1000 ease-out"
                       style={{ left: `${50 + p.nx * 0.4}%`, top: `${50 - p.ny * 0.4}%` }}
                     >
-                      <div className={`rounded-full border-2 shadow-sm ${p.isMe ? 'bg-indigo-500 border-white w-5 h-5 z-10 ring-2 ring-indigo-200' : 'bg-emerald-400 border-white w-4 h-4'}`} />
-                      <span className={`text-[10px] font-bold mt-1 px-2 py-0.5 rounded shadow-sm whitespace-nowrap ${p.isMe ? 'bg-indigo-600 text-white z-10' : 'bg-white text-slate-600'}`}>
+                      <div className={`rounded-full border-2 shadow-sm ${p.isMe ? 'bg-indigo-500 border-white w-5 h-5 z-20 ring-2 ring-indigo-200' : 'bg-emerald-400 border-white w-4 h-4 z-10'}`} />
+                      {/* 重なり回避のためにY軸方向に動的にずらす */}
+                      <span 
+                        className={`text-[10px] font-bold mt-1 px-2 py-0.5 rounded shadow-sm whitespace-nowrap absolute ${p.isMe ? 'bg-indigo-600 text-white z-20' : 'bg-white text-slate-600 z-10'}`}
+                        style={{ top: `${16 + p.labelOffsetY}px` }}
+                      >
                         {p.name.replace('(Bot)', '')}
                       </span>
                     </div>

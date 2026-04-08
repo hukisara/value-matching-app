@@ -274,7 +274,7 @@ export default function Home() {
              <img src="/icon-dt.png" alt="Algorithm by D.T." className="w-full h-full object-cover"/>
           </div>
           <h3 className="text-2xl font-black text-slate-800 tracking-tight">開発者の想いと裏側</h3>
-          <p className="text-xs font-bold text-indigo-500 mt-2 tracking-widest uppercase">Algorithm by D.T.</p>
+          <p className="text-xs font-bold text-slate-400 mt-2 tracking-widest uppercase">Algorithm by D.T.</p>
         </div>
 
         <div className="space-y-6 text-sm text-slate-600 leading-relaxed max-h-[50vh] overflow-y-auto pr-3">
@@ -283,13 +283,13 @@ export default function Home() {
             <div className="space-y-3">
               <p>友人同士の集まりや新しいチームで、「なんとなく気が合う」「なんだか合わない」と感じることってありませんか？これを言語化しようと思い、心理学や統計学で分析するアプリを作りました。</p>
               <p>「価値観が違う＝相性が悪い」とネガティブに捉えられがちですが、実は違うと思うんです。</p>
-              <p>自分とは真逆の考えを持つ人は、自分にない視点を提供してくれる<strong className="text-indigo-600">最高のパートナー</strong>になる可能性を秘めています。</p>
+              <p>自分とは真逆の考えを持つ人は、自分にない視点を提供してくれる<strong>最高のパートナー</strong>になる可能性を秘めています。</p>
               <p>みんなの違いを「優劣」ではなく「面白さ」として可視化できたら、もっと会話が弾むんじゃないか。そんな想いでこのアプリを開発しました。</p>
             </div>
           </div>
 
           <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-            <h4 className="font-bold text-indigo-600 mb-4 flex items-center gap-2">
+            <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
               <span className="text-lg">💡</span> 診断の裏側（専門的な話）
             </h4>
             <ul className="space-y-5">
@@ -316,19 +316,21 @@ export default function Home() {
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">
       <div className="max-w-md w-full mx-auto relative mt-4">
         <div className="mb-12 text-center">
-          <p className="text-indigo-500 font-bold tracking-[0.2em] text-xs mb-3 uppercase">
+          <p className="text-slate-400 font-bold tracking-[0.2em] text-xs mb-3 uppercase">
             Psychology & Math
           </p>
           <h1 className="text-4xl md:text-5xl font-black mb-6 tracking-tight text-slate-900">
             価値観マッチング
           </h1>
           
-          <div className="text-slate-500 text-sm leading-relaxed max-w-sm mx-auto font-medium">
+          <div className="text-slate-600 text-sm leading-relaxed max-w-sm mx-auto font-medium">
             <p className="mb-2">たった8つの質問に直感で答えるだけ。</p>
             <p>
-              グループ内で最も<strong className="text-slate-700">価値観が近い相手</strong>や、<br/>
-              自分にない視点をもたらす<strong className="text-indigo-600">「最高のパートナー」</strong>を<br/>
-              見つけ出します。
+              グループ内で最も価値観が近い相手や、<br/>
+              自分にない視点をもたらす<strong className="text-slate-900">「最高のパートナー」</strong>を見つけ出します。
+            </p>
+            <p className="mt-5 text-[10px] font-black text-slate-400 tracking-widest uppercase border border-slate-200 rounded-full px-3 py-1 inline-block">
+              飲み会やチームの話題作りに
             </p>
           </div>
         </div>
@@ -445,19 +447,19 @@ export default function Home() {
           <div className="flex flex-col md:flex-row justify-between md:items-end mb-8 gap-4 px-2">
             <div>
               <span className="text-slate-400 text-xs font-black uppercase tracking-widest block mb-2">Question {currentQIdx + 1} / {QUESTIONS.length}</span>
-              <span className="inline-block bg-white text-indigo-600 border border-indigo-100 text-sm font-bold px-4 py-1.5 rounded-full shadow-sm">{q.dim}</span>
+              <span className="inline-block bg-white text-slate-800 border border-slate-200 text-sm font-bold px-4 py-1.5 rounded-full shadow-sm">{q.dim}</span>
             </div>
             <div className="w-full md:w-1/3 bg-slate-200 rounded-full h-2 overflow-hidden">
-              <div className="bg-indigo-500 h-full transition-all duration-500 ease-out" style={{ width: `${(currentQIdx / QUESTIONS.length) * 100}%` }} />
+              <div className="bg-slate-800 h-full transition-all duration-500 ease-out" style={{ width: `${(currentQIdx / QUESTIONS.length) * 100}%` }} />
             </div>
           </div>
           <div className="bg-white rounded-[2rem] p-8 sm:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 mb-8 min-h-[200px] flex items-center justify-center relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500" />
+            <div className="absolute top-0 left-0 w-full h-1 bg-slate-800" />
             <h2 className="text-2xl md:text-3xl font-bold text-slate-800 leading-relaxed text-center">{q.text}</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button onClick={() => handleAnswer(1)} className="p-6 rounded-[1.5rem] bg-white border border-slate-200 text-xl font-bold text-slate-700 hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-700 active:scale-95 transition-all shadow-sm">{q.a}</button>
-            <button onClick={() => handleAnswer(-1)} className="p-6 rounded-[1.5rem] bg-white border border-slate-200 text-xl font-bold text-slate-700 hover:border-rose-400 hover:bg-rose-50 hover:text-rose-700 active:scale-95 transition-all shadow-sm">{q.b}</button>
+            <button onClick={() => handleAnswer(1)} className="p-6 rounded-[1.5rem] bg-white border border-slate-200 text-xl font-bold text-slate-700 hover:border-slate-800 hover:bg-slate-50 hover:text-slate-900 active:scale-95 transition-all shadow-sm">{q.a}</button>
+            <button onClick={() => handleAnswer(-1)} className="p-6 rounded-[1.5rem] bg-white border border-slate-200 text-xl font-bold text-slate-700 hover:border-slate-800 hover:bg-slate-50 hover:text-slate-900 active:scale-95 transition-all shadow-sm">{q.b}</button>
           </div>
         </div>
         <ResetButton />
@@ -531,7 +533,7 @@ export default function Home() {
         {showMethodology && <MethodologyModal />}
         <div className="max-w-3xl w-full mx-auto pb-10">
           <div className="text-center mb-12">
-            <span className="text-xs font-black text-indigo-500 tracking-[0.2em] uppercase mb-3 block">Analysis Result</span>
+            <span className="text-xs font-black text-slate-500 tracking-[0.2em] uppercase mb-3 block">Analysis Result</span>
             <h1 className="text-4xl md:text-5xl font-black text-slate-800 tracking-tight">診断結果</h1>
           </div>
           <div className="space-y-10">
@@ -541,7 +543,7 @@ export default function Home() {
                 <p className="text-sm text-slate-500 mt-2 font-medium">考え方のベクトルが似ているため、一緒にいて自然体でいられる関係です。</p>
               </div>
               <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 text-center relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1.5 bg-indigo-500" />
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-800" />
                 <div className="flex items-center justify-center gap-4 mb-8 mt-2">
                   <span className="text-3xl md:text-4xl font-black text-slate-800">{results.best.p1.name.replace('(Bot)', '')}</span>
                   <span className="text-slate-300 text-3xl font-light">×</span>
@@ -549,8 +551,8 @@ export default function Home() {
                 </div>
                 <div className="inline-flex items-baseline bg-slate-50 px-8 py-4 rounded-[2rem] border border-slate-100">
                   <span className="text-sm font-black text-slate-400 mr-5 uppercase tracking-wider">Sync</span>
-                  <span className="text-6xl font-black text-indigo-600 tracking-tighter">{results.best.percent}</span>
-                  <span className="text-2xl font-bold text-indigo-400 ml-1">%</span>
+                  <span className="text-6xl font-black text-slate-800 tracking-tighter">{results.best.percent}</span>
+                  <span className="text-2xl font-bold text-slate-400 ml-1">%</span>
                 </div>
               </div>
             </section>
@@ -562,9 +564,9 @@ export default function Home() {
                     <h3 className="font-bold text-slate-800 text-lg mb-2">最も価値観が遠い2人</h3>
                     <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">考え方が違うため、お互いの弱点をカバーし合えるチームになれる関係です。</p>
                   </div>
-                  <div className="bg-rose-50/50 rounded-2xl p-5 border border-rose-100/50">
-                    <div className="text-xl font-black text-slate-700 mb-3 text-center">{results.worst.p1.name.replace('(Bot)', '')} <span className="text-slate-300 font-normal mx-1">vs</span> {results.worst.p2.name.replace('(Bot)', '')}</div>
-                    <div className="text-center"><span className="text-xs font-bold text-rose-400 mr-2">類似度</span><span className="font-black text-2xl text-rose-500">{results.worst.percent}%</span></div>
+                  <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 text-center">
+                    <div className="text-xl font-black text-slate-800 mb-3">{results.worst.p1.name.replace('(Bot)', '')} <span className="text-slate-300 font-normal mx-1">vs</span> {results.worst.p2.name.replace('(Bot)', '')}</div>
+                    <div><span className="text-xs font-bold text-slate-400 mr-2">類似度</span><span className="font-black text-2xl text-slate-800">{results.worst.percent}%</span></div>
                   </div>
                 </div>
               </section>
@@ -574,9 +576,9 @@ export default function Home() {
                     <h3 className="font-bold text-slate-800 text-lg mb-2">最も独自路線を行く人</h3>
                     <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">グループの平均値から最も外れた独自の感性を持つ、貴重な存在です。</p>
                   </div>
-                  <div className="bg-amber-50/50 rounded-2xl p-5 border border-amber-100/50 text-center">
-                    <div className="text-2xl font-black text-slate-700 mb-2">{results.minority.name.replace('(Bot)', '')}</div>
-                    <div><span className="text-xs font-bold text-amber-500 mr-2">独自性スコア</span><span className="font-black text-2xl text-amber-500">{results.minority.uniquenessScore}%</span></div>
+                  <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 text-center">
+                    <div className="text-2xl font-black text-slate-800 mb-2">{results.minority.name.replace('(Bot)', '')}</div>
+                    <div><span className="text-xs font-bold text-slate-400 mr-2">独自性スコア</span><span className="font-black text-2xl text-slate-800">{results.minority.uniquenessScore}%</span></div>
                   </div>
                 </div>
               </section>
@@ -587,7 +589,7 @@ export default function Home() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {results.personalBests.map((pb, i) => (
                   <div key={i} className="flex justify-between items-center p-5 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                    <div className="font-bold text-slate-700 text-sm">{pb.me.name.replace('(Bot)', '')} <span className="text-slate-400 font-medium text-xs mx-2">の相手</span> <span className="text-indigo-600">{pb.partner.name.replace('(Bot)', '')}</span></div>
+                    <div className="font-bold text-slate-700 text-sm">{pb.me.name.replace('(Bot)', '')} <span className="text-slate-400 font-medium text-xs mx-2">の相手</span> <span className="text-slate-900">{pb.partner.name.replace('(Bot)', '')}</span></div>
                     <div className="text-sm font-black text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">{pb.percent}%</div>
                   </div>
                 ))}
@@ -606,12 +608,12 @@ export default function Home() {
                     <div key={idx}>
                       <p className="text-sm font-bold text-slate-800 mb-4 leading-relaxed">{q.text}</p>
                       <div className="flex justify-between text-xs font-black text-slate-500 mb-3 px-1">
-                        <span>{q.a} <span className="text-indigo-500">({stats.aPercent}%)</span></span>
-                        <span><span className="text-rose-400">({stats.bPercent}%)</span> {q.b}</span>
+                        <span>{q.a} <span className="text-slate-800">({stats.aPercent}%)</span></span>
+                        <span><span className="text-slate-800">({stats.bPercent}%)</span> {q.b}</span>
                       </div>
                       <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex">
-                        <div style={{ width: `${stats.aPercent}%` }} className="bg-indigo-500 h-full transition-all duration-1000" />
-                        <div style={{ width: `${stats.bPercent}%` }} className="bg-rose-400 h-full transition-all duration-1000" />
+                        <div style={{ width: `${stats.aPercent}%` }} className="bg-slate-800 h-full transition-all duration-1000" />
+                        <div style={{ width: `${stats.bPercent}%` }} className="bg-slate-300 h-full transition-all duration-1000" />
                       </div>
                     </div>
                   )

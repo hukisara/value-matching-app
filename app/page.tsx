@@ -239,7 +239,15 @@ export default function Home() {
         
         <div className="text-center mb-6 mt-2">
           <div className="w-20 h-20 mx-auto mb-4 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100">
-             <img src="/icon-dt.jpg" alt="Developer" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/150?text=Dog' }} />
+             {/* 拡張子を .png に修正しました */}
+             <img 
+               src="/icon-dt.png" 
+               alt="Developer" 
+               className="w-full h-full object-cover" 
+               onError={(e) => { 
+                 e.currentTarget.src = 'https://via.placeholder.com/150?text=Developer' 
+               }} 
+             />
           </div>
           <h3 className="text-2xl font-black text-slate-800 tracking-tight">開発者の想いと裏側</h3>
         </div>

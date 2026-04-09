@@ -503,9 +503,9 @@ export default function Home() {
         <div className="space-y-6 text-sm text-slate-600 leading-relaxed max-h-[50vh] overflow-y-auto pr-2">
           <div className="space-y-4">
             {DEVELOPER_THOUGHTS.map((text, i) => {
-              if (text.includes('補完')) {
-                const parts = text.split('補完');
-                return <p key={i}>{parts[0]}<strong className="text-slate-900 border-b border-slate-300 pb-0.5">補完</strong>{parts[1]}</p>
+              if (text.includes('最高のパートナー')) {
+                const parts = text.split('最高のパートナー');
+                return <p key={i}>{parts[0]}<strong className="text-slate-900 border-b border-slate-300 pb-0.5">最高のパートナー</strong>{parts[1]}</p>
               }
               return <p key={i}>{text}</p>
             })}
@@ -546,24 +546,21 @@ export default function Home() {
   if (currentView === 'NAME_INPUT') return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">
       <div className="max-w-md w-full mx-auto relative mt-4">
-        <div className="mb-12 text-center">
-          <p className="text-slate-400 font-semibold tracking-widest text-xs mb-3 uppercase">
-            Psychology & Math
+        <div className="mb-10 text-center">
+          <p className="text-[10px] font-semibold text-slate-400 tracking-widest uppercase border border-slate-200 rounded-full px-4 py-1.5 inline-block bg-white shadow-sm mb-6">
+            飲み会やチームの話題作りに
           </p>
           <h1 className="text-4xl md:text-5xl font-extrabold mb-6 tracking-tight text-slate-900">
             価値観マッチング
           </h1>
-          
+
           <div className="text-slate-600 text-sm leading-relaxed max-w-sm mx-auto font-medium">
-            <p className="mb-2">たった8つの質問に直感で答えるだけ。</p>
+            <p className="mb-4">たった8つの質問に直感で答えるだけ。</p>
             <p>
-              心理学の「類似性」と「相補性」に基づき、<br/>
-              価値観が重なる<strong className="text-slate-900 font-bold">「最高の理解者」</strong>と、<br/>
-              自分にない視点をもたらす<strong className="text-slate-900 font-bold">「最強の相棒」</strong>を<br/>
+              心理学の「類似性」と「相補性」に基づき、
+              価値観が重なる<strong className="text-slate-900 font-bold">「最高の理解者」</strong>と、
+              自分にない視点をもたらす<strong className="text-slate-900 font-bold">「最強の相棒」</strong>を
               見つけ出します。
-            </p>
-            <p className="mt-5 text-[10px] font-semibold text-slate-400 tracking-widest uppercase border border-slate-200 rounded-full px-4 py-1.5 inline-block bg-white shadow-sm">
-              飲み会やチームの話題作りに
             </p>
           </div>
         </div>
@@ -576,7 +573,7 @@ export default function Home() {
               className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none transition-all text-lg font-medium text-center" maxLength={10} />
           </div>
           <button onClick={handleNextToRoomSelect} className="w-full py-4 rounded-xl bg-slate-900 text-white font-medium text-lg hover:bg-slate-800 active:scale-[0.98] transition-all shadow-sm">
-            次へ進む
+            診断をはじめる
           </button>
         </div>
 

@@ -335,6 +335,7 @@ export default function Home() {
     
     if (typeof window !== 'undefined') {
       window.history.replaceState({}, document.title, window.location.pathname)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }, [])
 
@@ -527,7 +528,7 @@ export default function Home() {
             {DEVELOPER_THOUGHTS.map((text, i) => {
               if (text.includes('最高のパートナー')) {
                 const parts = text.split('最高のパートナー');
-                return <p key={i}>{parts[0]}<strong className="text-indigo-600">最高のパートナー</strong>{parts[1]}</p>
+                return <p key={i}>{parts[0]}<strong className="text-indigo-600 border-b border-indigo-200 pb-0.5">最高のパートナー</strong>{parts[1]}</p>
               }
               return <p key={i}>{text}</p>
             })}
@@ -579,8 +580,10 @@ export default function Home() {
           <div className="text-slate-600 text-sm leading-relaxed max-w-sm mx-auto font-medium">
             <p className="mb-2">たった8つの質問に直感で答えるだけ。</p>
             <p>
-              グループ内で最も価値観が近い相手や、<br/>
-              自分にない視点をもたらす<strong className="text-slate-900">「最高のパートナー」</strong>を見つけ出します。
+              心理学の「類似性」と「相補性」に基づき、<br/>
+              価値観が重なる<strong className="text-slate-900">「最高の理解者」</strong>と、<br/>
+              自分にない視点をもたらす<strong className="text-slate-900">「最強の相棒」</strong>を<br/>
+              見つけ出します。
             </p>
             <p className="mt-5 text-[10px] font-black text-slate-400 tracking-widest uppercase border border-slate-200 rounded-full px-3 py-1 inline-block">
               飲み会やチームの話題作りに
@@ -784,7 +787,18 @@ export default function Home() {
     const mapData = generate2DMapData(roomParticipants);
 
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-800 font-sans py-10 px-4">
+      <div className="min-h-screen bg-slate-50 text-slate-800 font-sans py-10 px-4 relative">
+        {/* フローティング「最初から」ボタン */}
+        <div className="fixed bottom-6 right-6 z-40">
+          <button 
+            onClick={completelyResetGame} 
+            className="flex items-center justify-center gap-2 bg-slate-800 text-white px-5 py-3 rounded-full font-bold shadow-lg shadow-slate-300 hover:bg-slate-900 active:scale-95 transition-all border border-slate-700"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+            最初から
+          </button>
+        </div>
+
         {showMethodology && <MethodologyModal />}
         {showAlgorithm && <AlgorithmModal />}
         <div className="max-w-3xl w-full mx-auto pb-10">
@@ -799,7 +813,7 @@ export default function Home() {
             <section>
               <div className="mb-4 text-center">
                 <h3 className="font-black text-slate-800 text-2xl tracking-tight">最も価値観が近い2人</h3>
-                <p className="text-sm text-slate-500 mt-2 font-medium">考え方のベクトルが似ているため、一緒にいて自然体でいられる関係です。</p>
+                <p className="text-sm text-slate-500 mt-2 font-medium">心理学の「類似性の法則」に基づき、考え方のベクトルが似ているため、一緒にいて自然体でいられる関係です。</p>
               </div>
               <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 text-center relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-800" />
@@ -822,7 +836,7 @@ export default function Home() {
                 <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 h-full flex flex-col justify-between">
                   <div>
                     <h3 className="font-bold text-slate-800 text-lg mb-2">最も価値観が遠い2人</h3>
-                    <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">考え方が違うため、お互いの弱点をカバーし合えるチームになれる関係です。</p>
+                    <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">心理学の「相補性の法則」に基づき、考え方が違うため、お互いの弱点をカバーし合える最強のチームになれる関係です。</p>
                   </div>
                   <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 text-center">
                     <div className="text-xl font-black text-slate-800 mb-3">{results.worst.p1.name.replace('(Bot)', '')} <span className="text-slate-300 font-normal mx-1">vs</span> {results.worst.p2.name.replace('(Bot)', '')}</div>
@@ -834,7 +848,7 @@ export default function Home() {
                 <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 h-full flex flex-col justify-between">
                   <div>
                     <h3 className="font-bold text-slate-800 text-lg mb-2">最も独自路線を行く人</h3>
-                    <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">グループの平均値から最も外れた独自の感性を持つ、貴重な存在です。</p>
+                    <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">グループの平均値から最も外れた独自の感性を持つ、集団のマンネリ化を防ぐ貴重な存在です。</p>
                   </div>
                   <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 text-center">
                     <div className="text-2xl font-black text-slate-800 mb-2">{results.minority.name.replace('(Bot)', '')}</div>

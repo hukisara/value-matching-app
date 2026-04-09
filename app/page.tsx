@@ -314,6 +314,17 @@ export default function Home() {
     }
   }, [localAnswers, me])
 
+  const handleBack = useCallback(async () => {
+    if (currentQIdx === 0) return
+    const newAnswers = localAnswers.slice(0, -1)
+    setLocalAnswers(newAnswers)
+    setCurrentQIdx((idx) => idx - 1)
+    if (me) {
+      setParticipants(prev => prev.map(p => p.id === me.id ? { ...p, answers: newAnswers } : p))
+      supabase.from('participants').update({ answers: newAnswers }).eq('id', me.id).then()
+    }
+  }, [currentQIdx, localAnswers, me])
+
   const triggerCalculation = useCallback(async () => {
     if (!currentRoom) return
     setRooms(prev => prev.map(r => r.id === currentRoom.id ? { ...r, status: 'calculating' } : r))
@@ -673,9 +684,15 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col py-8 px-4 relative">
         <div className="max-w-2xl w-full mx-auto flex-grow flex flex-col justify-center">
-          <div className="flex flex-col md:flex-row justify-between md:items-end mb-8 gap-4 px-2">
-            <div>
-              <span className="text-slate-400 text-xs font-bold uppercase tracking-widest block mb-2">Question {currentQIdx + 1} / {QUESTIONS.length}</span>
+          <div className="flex flex-col md:flex-row justify-between md:items-center mb-8 gap-4 px-2">
+            <div className="flex items-center gap-3">
+              {currentQIdx > 0 && (
+                <button onClick={handleBack} className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm transition-colors">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                  前の問いへ
+                </button>
+              )}
+              <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">{currentQIdx + 1} / {QUESTIONS.length}</span>
               <span className="inline-block bg-white text-slate-700 border border-slate-200 text-xs font-semibold px-3 py-1 rounded-full shadow-sm">{q.dim}</span>
             </div>
             <div className="w-full md:w-1/3 bg-slate-200 rounded-full h-1.5 overflow-hidden">
@@ -811,7 +828,11 @@ export default function Home() {
                     <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">心理学の「相補性の法則」に基づき、考え方が違うため、お互いの弱点をカバーし合える最強のチームになれる関係です。</p>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-5 border border-slate-200 text-center">
-                    <div className="text-xl font-extrabold text-slate-900 mb-3">{results.worst.p1.name.replace('(Bot)', '')} <span className="text-slate-300 font-normal mx-2 text-sm">vs</span> {results.worst.p2.name.replace('(Bot)', '')}</div>
+                    <div className="flex items-center justify-center gap-3 mb-3">
+                      <span className="text-xl font-extrabold text-slate-900">{results.worst.p1.name.replace('(Bot)', '')}</span>
+                      <span className="text-slate-300 text-lg font-light">×</span>
+                      <span className="text-xl font-extrabold text-slate-900">{results.worst.p2.name.replace('(Bot)', '')}</span>
+                    </div>
                     <div><span className="text-[10px] font-bold text-slate-400 mr-2 uppercase tracking-wider">Similarity</span><span className="font-extrabold text-2xl text-slate-900">{results.worst.percent}%</span></div>
                   </div>
                 </div>
@@ -858,54 +879,62 @@ export default function Home() {
                 <h3 className="font-extrabold text-slate-900 text-2xl tracking-tight">相関ネットワーク図</h3>
                 <p className="text-xs text-slate-500 mt-2 font-medium">8次元のデータを2次元に圧縮。誰と誰が繋がっているか（シンクロ率60%以上）を可視化しました。</p>
               </div>
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 relative">
-                <div className="relative w-full aspect-square max-w-md mx-auto bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
-                  <div className="absolute top-1/2 left-0 w-full h-px bg-slate-200" />
-                  <div className="absolute top-0 left-1/2 w-px h-full bg-slate-200" />
-                  <div className="absolute top-1/2 left-1/2 w-full h-full border border-slate-200 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
-                  <div className="absolute top-1/2 left-1/2 w-1/2 h-1/2 border border-slate-200 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
-                  
-                  <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 bg-slate-50/80 px-2 rounded-full">規律・論理的</div>
-                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 bg-slate-50/80 px-2 rounded-full">柔軟・共感的</div>
-                  <div className="absolute top-1/2 left-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-slate-50/80 px-2 rounded-full">保守・パッシブ</div>
-                  <div className="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-slate-50/80 px-2 rounded-full">革新・アクティブ</div>
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div className="max-w-md mx-auto">
+                  {/* 上軸ラベル */}
+                  <p className="text-center text-[10px] font-bold text-slate-400 mb-2">規律・論理的 ↑</p>
+                  <div className="flex items-center gap-2">
+                    {/* 左軸ラベル */}
+                    <p className="text-[10px] font-bold text-slate-400 flex-shrink-0 [writing-mode:vertical-rl] rotate-180 leading-none">保守・パッシブ</p>
+                    {/* マップ本体 */}
+                    <div className="relative flex-1 aspect-square bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
+                      <div className="absolute top-1/2 left-0 w-full h-px bg-slate-200" />
+                      <div className="absolute top-0 left-1/2 w-px h-full bg-slate-200" />
+                      <div className="absolute top-1/2 left-1/2 w-full h-full border border-slate-200 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
+                      <div className="absolute top-1/2 left-1/2 w-1/2 h-1/2 border border-slate-200 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
 
-                  <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                    {results.allPairs.filter(p => p.percent >= 60).map((conn, i) => {
-                      const p1 = mapData.find(m => m.id === conn.p1.id);
-                      const p2 = mapData.find(m => m.id === conn.p2.id);
-                      if(!p1 || !p2) return null;
-                      return (
-                        <line 
-                          key={i} 
-                          x1={`${50 + p1.nx * 0.4}%`} 
-                          y1={`${50 - p1.ny * 0.4}%`} 
-                          x2={`${50 + p2.nx * 0.4}%`} 
-                          y2={`${50 - p2.ny * 0.4}%`} 
-                          stroke={conn.percent >= 80 ? "#64748b" : "#cbd5e1"} 
-                          strokeWidth={conn.percent >= 80 ? 2 : 1}
-                          strokeDasharray={conn.percent >= 80 ? "0" : "4 4"}
-                          className="transition-all duration-1000 ease-out"
-                        />
-                      )
-                    })}
-                  </svg>
+                      <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                        {results.allPairs.filter(p => p.percent >= 60).map((conn, i) => {
+                          const p1 = mapData.find(m => m.id === conn.p1.id);
+                          const p2 = mapData.find(m => m.id === conn.p2.id);
+                          if(!p1 || !p2) return null;
+                          return (
+                            <line
+                              key={i}
+                              x1={`${50 + p1.nx * 0.4}%`}
+                              y1={`${50 - p1.ny * 0.4}%`}
+                              x2={`${50 + p2.nx * 0.4}%`}
+                              y2={`${50 - p2.ny * 0.4}%`}
+                              stroke={conn.percent >= 80 ? "#64748b" : "#cbd5e1"}
+                              strokeWidth={conn.percent >= 80 ? 2 : 1}
+                              strokeDasharray={conn.percent >= 80 ? "0" : "4 4"}
+                              className="transition-all duration-1000 ease-out"
+                            />
+                          )
+                        })}
+                      </svg>
 
-                  {mapData.map(p => (
-                    <div
-                      key={p.id}
-                      className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-1000 ease-out"
-                      style={{ left: `${50 + p.nx * 0.4}%`, top: `${50 - p.ny * 0.4}%` }}
-                    >
-                      <div className={`rounded-full border-2 ${p.isMe ? 'bg-slate-900 border-white w-4 h-4 z-20' : 'bg-white border-slate-400 w-3 h-3 z-10'}`} />
-                      <span 
-                        className={`text-[10px] font-semibold mt-1 px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap absolute border ${p.isMe ? 'bg-slate-900 text-white border-slate-800 z-30' : 'bg-white/90 backdrop-blur-sm text-slate-600 border-slate-200 z-20'}`}
-                        style={{ top: `${p.labelOffsetY}px` }}
-                      >
-                        {p.name.replace('(Bot)', '')}
-                      </span>
+                      {mapData.map(p => (
+                        <div
+                          key={p.id}
+                          className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-1000 ease-out"
+                          style={{ left: `${50 + p.nx * 0.4}%`, top: `${50 - p.ny * 0.4}%` }}
+                        >
+                          <div className={`rounded-full border-2 ${p.isMe ? 'bg-slate-900 border-white w-4 h-4 z-20' : 'bg-white border-slate-400 w-3 h-3 z-10'}`} />
+                          <span
+                            className={`text-[10px] font-semibold mt-1 px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap absolute border ${p.isMe ? 'bg-slate-900 text-white border-slate-800 z-30' : 'bg-white/90 backdrop-blur-sm text-slate-600 border-slate-200 z-20'}`}
+                            style={{ top: `${p.labelOffsetY}px` }}
+                          >
+                            {p.name.replace('(Bot)', '')}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                    {/* 右軸ラベル */}
+                    <p className="text-[10px] font-bold text-slate-400 flex-shrink-0 [writing-mode:vertical-rl] leading-none">革新・アクティブ</p>
+                  </div>
+                  {/* 下軸ラベル */}
+                  <p className="text-center text-[10px] font-bold text-slate-400 mt-2">↓ 柔軟・共感的</p>
                 </div>
               </div>
             </section>
@@ -964,23 +993,34 @@ export default function Home() {
                   const stats = results.questionStats[idx]
                   return (
                     <div key={idx} className="border-b border-slate-100 pb-8 last:border-0 last:pb-0">
-                      <p className="text-sm font-bold text-slate-800 mb-4 leading-relaxed">{q.text}</p>
-                      
-                      <div className="flex flex-col gap-2 mb-3">
-                        <div className="flex justify-between items-center text-xs px-1">
-                          <span className="w-[85%] pr-3 text-slate-600 font-medium leading-snug">{q.a}</span>
-                          <span className="font-bold text-slate-900">{stats.aPercent}%</span>
+                      <p className="text-sm font-bold text-slate-800 mb-5 leading-relaxed">{q.text}</p>
+                      <div className="space-y-4">
+                        {/* 選択肢A */}
+                        <div className="flex items-start gap-3">
+                          <span className="flex-shrink-0 text-[10px] font-bold text-white bg-slate-800 rounded px-1.5 py-0.5 mt-0.5 leading-tight">A</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-baseline gap-2 mb-1.5">
+                              <span className="text-xs text-slate-700 font-medium leading-snug">{q.a}</span>
+                              <span className="flex-shrink-0 font-bold text-slate-900 text-sm tabular-nums">{stats.aPercent}%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div style={{ width: `${stats.aPercent}%` }} className="bg-slate-800 h-full transition-all duration-1000 rounded-full" />
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center text-xs px-1 mt-2">
-                          <span className="w-[85%] pr-3 text-slate-600 font-medium leading-snug">{q.b}</span>
-                          <span className="font-bold text-slate-500">{stats.bPercent}%</span>
+                        {/* 選択肢B */}
+                        <div className="flex items-start gap-3">
+                          <span className="flex-shrink-0 text-[10px] font-bold text-slate-500 bg-slate-200 rounded px-1.5 py-0.5 mt-0.5 leading-tight">B</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-baseline gap-2 mb-1.5">
+                              <span className="text-xs text-slate-500 font-medium leading-snug">{q.b}</span>
+                              <span className="flex-shrink-0 font-bold text-slate-500 text-sm tabular-nums">{stats.bPercent}%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div style={{ width: `${stats.bPercent}%` }} className="bg-slate-300 h-full transition-all duration-1000 rounded-full" />
+                            </div>
+                          </div>
                         </div>
-                      </div>
-
-                      {/* 抜け感を出すための細いプログレスバー */}
-                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex mt-2">
-                        <div style={{ width: `${stats.aPercent}%` }} className="bg-slate-800 h-full transition-all duration-1000" />
-                        <div style={{ width: `${stats.bPercent}%` }} className="bg-slate-300 h-full transition-all duration-1000" />
                       </div>
                     </div>
                   )

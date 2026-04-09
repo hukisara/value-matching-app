@@ -54,6 +54,7 @@ export default function Home() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // 初期データフェッチ
   useEffect(() => {
     if (!userId) return
     let mounted = true
@@ -537,7 +538,6 @@ export default function Home() {
   )
 
   const AlgorithmModal = () => {
-    const colors = ['text-indigo-600', 'text-rose-500', 'text-emerald-500', 'text-amber-500', 'text-blue-500', 'text-purple-500'];
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
         <div className="bg-white rounded-[2rem] max-w-lg w-full relative my-8 p-6 sm:p-8 shadow-2xl">
@@ -545,22 +545,20 @@ export default function Home() {
           
           <div className="text-center mb-8 mt-2">
             <h3 className="text-2xl font-black text-slate-800 tracking-tight">アルゴリズムと理論</h3>
+            <p className="text-xs font-bold text-indigo-500 mt-2 tracking-widest uppercase">Logic & Science</p>
           </div>
 
-          <div className="space-y-6 text-sm text-slate-600 leading-relaxed max-h-[60vh] overflow-y-auto pr-3">
-            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-              <h4 className="font-bold text-slate-800 mb-5 flex items-center gap-2 border-b border-slate-200 pb-4">
-                <span className="text-xl">💡</span> 心理学とアルゴリズムの裏側
-              </h4>
-              <ul className="space-y-6">
-                {COLUMNS.map((col, idx) => (
-                  <li key={idx}>
-                    <strong className={`${colors[idx % colors.length]} block mb-1`}>{col.title}</strong>
-                    {col.text}
-                  </li>
-                ))}
-              </ul>
-            </div>
+          <div className="space-y-4 text-sm text-slate-600 leading-relaxed max-h-[60vh] overflow-y-auto pr-2 pb-2">
+            {COLUMNS.map((col, idx) => (
+              <div key={idx} className="bg-slate-50 p-5 rounded-2xl border border-slate-100 relative overflow-hidden group hover:border-indigo-200 transition-colors">
+                <div className="absolute top-0 left-0 w-1 h-full bg-slate-300 group-hover:bg-indigo-400 transition-colors"></div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[10px] font-black text-slate-400 font-mono">{(idx + 1).toString().padStart(2, '0')}</span>
+                  <h4 className="font-bold text-slate-800">{col.title}</h4>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed pl-6">{col.text}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>

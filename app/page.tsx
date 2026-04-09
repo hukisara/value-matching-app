@@ -369,22 +369,7 @@ export default function Home() {
       }
     });
 
-    let allPairs = [];
-    for (let i = 0; i < finishedPlayers.length; i++) {
-      for (let j = i + 1; j < finishedPlayers.length; j++) {
-        const p1 = finishedPlayers[i]; const p2 = finishedPlayers[j];
-        let dotProduct = 0; let normA = 0; let normB = 0;
-        for (let k = 0; k < QUESTIONS.length; k++) {
-          const a1 = (p1.answers as number[])[k]; const a2 = (p2.answers as number[])[k];
-          dotProduct += a1 * a2; normA += a1 ** 2; normB += a2 ** 2;
-        }
-        const similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-        const percent = Math.round(((similarity + 1) / 2) * 100);
-        allPairs.push({ p1, p2, percent });
-      }
-    }
-
-    return { ...res, groupRules, groupWeaknesses, allPairs };
+    return { ...res, groupRules, groupWeaknesses, allPairs: res.allPairs };
   }, [roomParticipants]);
 
   const generate2DMapData = useCallback((parts: Participant[]) => {
@@ -518,9 +503,9 @@ export default function Home() {
         <div className="space-y-6 text-sm text-slate-600 leading-relaxed max-h-[50vh] overflow-y-auto pr-2">
           <div className="space-y-4">
             {DEVELOPER_THOUGHTS.map((text, i) => {
-              if (text.includes('最高のパートナー')) {
-                const parts = text.split('最高のパートナー');
-                return <p key={i}>{parts[0]}<strong className="text-slate-900 border-b border-slate-300 pb-0.5">最高のパートナー</strong>{parts[1]}</p>
+              if (text.includes('補完')) {
+                const parts = text.split('補完');
+                return <p key={i}>{parts[0]}<strong className="text-slate-900 border-b border-slate-300 pb-0.5">補完</strong>{parts[1]}</p>
               }
               return <p key={i}>{text}</p>
             })}

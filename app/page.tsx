@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { QUESTIONS, COLUMNS } from '@/lib/questions'
+import { QUESTIONS, COLUMNS, DEVELOPER_THOUGHTS } from '@/lib/questions'
 import { calculateResults } from '@/lib/matching'
 import type { Room, Participant } from '@/types/database'
 
@@ -54,7 +54,6 @@ export default function Home() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // 初期データフェッチ
   useEffect(() => {
     if (!userId) return
     let mounted = true
@@ -101,13 +100,13 @@ export default function Home() {
     }
     fetchInitial()
     return () => { mounted = false }
-  }, [userId]) 
+  }, [userId, isRestoring]) 
 
-  // リアルタイム通信（即時反映用）
+  // リアルタイム通信
   useEffect(() => {
     if (!userId) return
     const channel = supabase
-      .channel('public:room_updates')
+      .channel('app-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, (payload) => {
         setRooms((prev) => {
           if (payload.eventType === 'INSERT') {
@@ -134,7 +133,7 @@ export default function Home() {
     return () => { supabase.removeChannel(channel) }
   }, [userId])
 
-  // ★プロのフェイルセーフ（安全装置）：WebSocketsが途切れても確実に画面を同期する3秒ポーリング
+  // プロフェッショナルなフェイルセーフ（3秒ポーリング）
   useEffect(() => {
     if (!roomCode) return;
     let isFetching = false;
@@ -182,7 +181,7 @@ export default function Home() {
       }
     };
 
-    const intervalId = setInterval(syncRoomData, 3000); // 3秒ごとに強制的に最新状態へ
+    const intervalId = setInterval(syncRoomData, 3000); 
     return () => clearInterval(intervalId);
   }, [roomCode]);
 
@@ -281,7 +280,7 @@ export default function Home() {
       };
     })
     
-    // DBへの挿入とローカルへの即時反映
+    // ローカルへ即時反映（オプティミスティック更新）
     const { data, error } = await supabase.from('participants').insert(dummies).select()
     if (!error && data) {
       setParticipants(prev => {
@@ -296,7 +295,7 @@ export default function Home() {
 
   const startGame = useCallback(async () => {
     if (!currentRoom) return
-    // ローカルの状態を即座に変更（爆速UX）
+    // ローカルへ即時反映
     setRooms(prev => prev.map(r => r.id === currentRoom.id ? { ...r, status: 'playing' } : r))
     await supabase.from('rooms').update({ status: 'playing' }).eq('id', currentRoom.id)
   }, [currentRoom])
@@ -427,12 +426,14 @@ export default function Home() {
       return { id: p.id, name: p.name, x, y, title, isMe: p.user_id === userId, labelOffsetY: 18 };
     });
 
+    // 初期配置（ランダムなジッターを入れて完全に重なるのを防ぐ）
     mapped = mapped.map(p => ({
       ...p,
       nx: (p.x / maxAbs) * 100 + (Math.random() - 0.5) * 8, 
       ny: (p.y / maxAbs) * 100 + (Math.random() - 0.5) * 8
     }));
 
+    // 物理シミュレーション（斥力モデル）で重なりを回避
     for (let iter = 0; iter < 30; iter++) {
       for (let i = 0; i < mapped.length; i++) {
         for (let j = i + 1; j < mapped.length; j++) {
@@ -445,7 +446,7 @@ export default function Home() {
             dist = 1;
           }
           
-          const minDist = 20;
+          const minDist = 20; // 最小の距離
           if (dist < minDist) {
             const force = (minDist - dist) / dist * 0.4;
             mapped[i].nx += dx * force;
@@ -457,6 +458,7 @@ export default function Home() {
       }
     }
 
+    // 枠外にはみ出さないようにクリッピング
     mapped.forEach(p => {
       p.nx = Math.max(-85, Math.min(85, p.nx));
       p.ny = Math.max(-85, Math.min(85, p.ny));
@@ -521,53 +523,49 @@ export default function Home() {
 
         <div className="space-y-6 text-sm text-slate-600 leading-relaxed max-h-[50vh] overflow-y-auto pr-3">
           <div className="space-y-4">
-            <p>友人同士の集まりや新しいチームで、「なんとなく気が合う」「なんだか合わない」と感じることってありませんか？これを言語化しようと思い、心理学や統計学で分析するアプリを作りました。</p>
-            <p>「価値観が違う＝相性が悪い」とネガティブに捉えられがちですが、実は違うと思うんです。</p>
-            <p>自分とは真逆の考えを持つ人は、自分にない視点を提供してくれる<strong className="text-indigo-600">最高のパートナー</strong>になる可能性を秘めています。</p>
-            <p>みんなの違いを「優劣」ではなく「面白さ」として可視化できたら、もっと会話が弾むんじゃないか。そんな想いでこのアプリを開発しました。</p>
+            {DEVELOPER_THOUGHTS.map((text, i) => {
+              if (text.includes('最高のパートナー')) {
+                const parts = text.split('最高のパートナー');
+                return <p key={i}>{parts[0]}<strong className="text-indigo-600">最高のパートナー</strong>{parts[1]}</p>
+              }
+              return <p key={i}>{text}</p>
+            })}
           </div>
         </div>
       </div>
     </div>
   )
 
-  const AlgorithmModal = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-white rounded-[2rem] max-w-lg w-full relative my-8 p-6 sm:p-8 shadow-2xl">
-        <button onClick={() => setShowAlgorithm(false)} className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition-colors">✕</button>
-        
-        <div className="text-center mb-8 mt-2">
-          <h3 className="text-2xl font-black text-slate-800 tracking-tight">アルゴリズムと理論</h3>
-        </div>
+  const AlgorithmModal = () => {
+    const colors = ['text-indigo-600', 'text-rose-500', 'text-emerald-500', 'text-amber-500', 'text-blue-500', 'text-purple-500'];
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+        <div className="bg-white rounded-[2rem] max-w-lg w-full relative my-8 p-6 sm:p-8 shadow-2xl">
+          <button onClick={() => setShowAlgorithm(false)} className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition-colors">✕</button>
+          
+          <div className="text-center mb-8 mt-2">
+            <h3 className="text-2xl font-black text-slate-800 tracking-tight">アルゴリズムと理論</h3>
+          </div>
 
-        <div className="space-y-6 text-sm text-slate-600 leading-relaxed max-h-[60vh] overflow-y-auto pr-3">
-          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-            <h4 className="font-bold text-slate-800 mb-5 flex items-center gap-2 border-b border-slate-200 pb-4">
-              <span className="text-xl">💡</span> 心理学とアルゴリズムの裏側
-            </h4>
-            <ul className="space-y-6">
-              <li>
-                <strong className="text-indigo-600 block mb-1">ビッグファイブ理論</strong>
-                心理学において最も信頼性が高いとされる性格分析理論です。「開放性・誠実性・外向性・協調性・神経症的傾向」の5つの次元から、人間の性格を科学的に浮き彫りにします。
-              </li>
-              <li>
-                <strong className="text-rose-500 block mb-1">ゴットマンのコンフリクト理論</strong>
-                夫婦やカップルの破局を予測する研究で知られる理論です。喧嘩の「原因」ではなく、「解決スタイル（その場で話し合うか、時間を置くか）」が一致しているかが、関係の長続きには重要とされています。
-              </li>
-              <li>
-                <strong className="text-slate-800 block mb-1">多次元ベクトルとコサイン類似度</strong>
-                単なる「一致数」ではなく、全員の回答を多次元空間のベクトル（矢印）に見立て、その向きの近さを「コサイン類似度」という計算式で弾き出しています。
-              </li>
-              <li>
-                <strong className="text-amber-500 block mb-1">相互補完性と独自性</strong>
-                考え方が一番かけ離れているペアはお互いの弱点を補い合える「最強の相互補完ペア」に。また、グループ全員の平均値から一番遠い回答をした人は「独自路線を行く人」として評価します。
-              </li>
-            </ul>
+          <div className="space-y-6 text-sm text-slate-600 leading-relaxed max-h-[60vh] overflow-y-auto pr-3">
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+              <h4 className="font-bold text-slate-800 mb-5 flex items-center gap-2 border-b border-slate-200 pb-4">
+                <span className="text-xl">💡</span> 心理学とアルゴリズムの裏側
+              </h4>
+              <ul className="space-y-6">
+                {COLUMNS.map((col, idx) => (
+                  <li key={idx}>
+                    <strong className={`${colors[idx % colors.length]} block mb-1`}>{col.title}</strong>
+                    {col.text}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   if (currentView === 'NAME_INPUT') return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">

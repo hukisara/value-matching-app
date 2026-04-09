@@ -885,7 +885,7 @@ export default function Home() {
                   <p className="text-center text-[10px] font-bold text-slate-400 mb-2">規律・論理的 ↑</p>
                   <div className="flex items-center gap-2">
                     {/* 左軸ラベル */}
-                    <p className="text-[10px] font-bold text-slate-400 flex-shrink-0 [writing-mode:vertical-rl] rotate-180 leading-none">保守・パッシブ</p>
+                    <p className="text-[10px] font-bold text-slate-400 flex-shrink-0 [writing-mode:vertical-rl] leading-none">保守・パッシブ</p>
                     {/* マップ本体 */}
                     <div className="relative flex-1 aspect-square bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
                       <div className="absolute top-1/2 left-0 w-full h-px bg-slate-200" />

@@ -54,7 +54,6 @@ export default function Home() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // 初期データフェッチ
   useEffect(() => {
     if (!userId) return
     let mounted = true
@@ -103,7 +102,6 @@ export default function Home() {
     return () => { mounted = false }
   }, [userId, isRestoring]) 
 
-  // リアルタイム通信
   useEffect(() => {
     if (!userId) return
     const channel = supabase
@@ -134,7 +132,6 @@ export default function Home() {
     return () => { supabase.removeChannel(channel) }
   }, [userId])
 
-  // プロフェッショナルなフェイルセーフ（3秒ポーリング）
   useEffect(() => {
     if (!roomCode) return;
     let isFetching = false;
@@ -259,7 +256,7 @@ export default function Home() {
   const copyInviteText = useCallback(() => {
     const baseUrl = window.location.href.split('?')[0].split('#')[0]
     const inviteUrl = `${baseUrl}?room=${roomCode}`
-    const text = `価値観マッチングに参加しよう！\nURL: ${inviteUrl}\nパスコード: 【 ${roomCode} 】`
+    const text = `価値観マッチングに参加しよう！\nURL: ${inviteUrl}\nパスコード: ${roomCode}`
     const el = document.createElement('textarea')
     el.value = text; el.style.position = 'absolute'; el.style.left = '-999999px'
     document.body.appendChild(el); el.select()
@@ -281,7 +278,6 @@ export default function Home() {
       };
     })
     
-    // ローカルへ即時反映（オプティミスティック更新）
     const { data, error } = await supabase.from('participants').insert(dummies).select()
     if (!error && data) {
       setParticipants(prev => {
@@ -296,7 +292,6 @@ export default function Home() {
 
   const startGame = useCallback(async () => {
     if (!currentRoom) return
-    // ローカルへ即時反映
     setRooms(prev => prev.map(r => r.id === currentRoom.id ? { ...r, status: 'playing' } : r))
     await supabase.from('rooms').update({ status: 'playing' }).eq('id', currentRoom.id)
   }, [currentRoom])
@@ -425,17 +420,15 @@ export default function Home() {
       if (distance > 3) title = `絶対的・${title}`;
       else if (distance < 1) title = `マイルドな${title}`;
 
-      return { id: p.id, name: p.name, x, y, title, isMe: p.user_id === userId, labelOffsetY: 18 };
+      return { id: p.id, name: p.name, x, y, title, isMe: p.user_id === userId, labelOffsetY: 20 };
     });
 
-    // 初期配置（ランダムなジッターを入れて完全に重なるのを防ぐ）
     mapped = mapped.map(p => ({
       ...p,
       nx: (p.x / maxAbs) * 100 + (Math.random() - 0.5) * 8, 
       ny: (p.y / maxAbs) * 100 + (Math.random() - 0.5) * 8
     }));
 
-    // 物理シミュレーション（斥力モデル）で重なりを回避
     for (let iter = 0; iter < 30; iter++) {
       for (let i = 0; i < mapped.length; i++) {
         for (let j = i + 1; j < mapped.length; j++) {
@@ -448,7 +441,7 @@ export default function Home() {
             dist = 1;
           }
           
-          const minDist = 20; // 最小の距離
+          const minDist = 22; 
           if (dist < minDist) {
             const force = (minDist - dist) / dist * 0.4;
             mapped[i].nx += dx * force;
@@ -460,7 +453,6 @@ export default function Home() {
       }
     }
 
-    // 枠外にはみ出さないようにクリッピング
     mapped.forEach(p => {
       p.nx = Math.max(-85, Math.min(85, p.nx));
       p.ny = Math.max(-85, Math.min(85, p.ny));
@@ -471,39 +463,39 @@ export default function Home() {
 
   if (!userId || isRestoring) return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center gap-5">
-      <div className="relative flex justify-center items-center">
-        <div className="w-12 h-12 border-4 border-indigo-100 rounded-full"></div>
-        <div className="w-12 h-12 border-4 border-indigo-500 rounded-full border-t-transparent animate-spin absolute"></div>
+      <div className="relative flex justify-center items-center w-12 h-12">
+        <div className="absolute inset-0 border-2 border-slate-200 rounded-full"></div>
+        <div className="absolute inset-0 border-2 border-slate-800 rounded-full border-t-transparent animate-spin"></div>
       </div>
-      <p className="text-sm font-bold text-slate-400 tracking-wider">データを読み込んでいます...</p>
+      <p className="text-xs font-semibold text-slate-400 tracking-widest uppercase">LOADING...</p>
     </div>
   )
 
   const ResetButton = () => (
     <div className="mt-12 text-center pb-6">
-      <button onClick={completelyResetGame} className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors bg-white px-4 py-2 rounded-full shadow-sm border border-slate-100">
+      <button onClick={completelyResetGame} className="text-xs font-semibold text-slate-400 hover:text-slate-800 transition-colors bg-white px-5 py-2.5 rounded-full shadow-sm border border-slate-200">
         最初からやり直す（退出）
       </button>
     </div>
   )
 
   const DeveloperCredit = () => (
-    <div className="text-center mt-10 flex flex-col items-center gap-5 pb-8">
+    <div className="text-center mt-10 flex flex-col items-center gap-4 pb-8">
       <div className="flex flex-col sm:flex-row gap-3">
-        <button onClick={() => setShowMethodology(true)} className="text-sm font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center justify-center gap-2">
-          <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs text-white">i</span>
+        <button onClick={() => setShowMethodology(true)} className="text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors flex items-center justify-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-100">
+          <span className="w-4 h-4 rounded-full border border-slate-400 flex items-center justify-center text-[10px]">i</span>
           開発者の想い
         </button>
-        <button onClick={() => setShowAlgorithm(true)} className="text-sm font-bold text-slate-400 hover:text-indigo-500 transition-colors flex items-center justify-center gap-2">
-          <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-xs text-white">⚙️</span>
+        <button onClick={() => setShowAlgorithm(true)} className="text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors flex items-center justify-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-100">
+          <span className="w-4 h-4 rounded-full border border-slate-400 flex items-center justify-center text-[10px]">⚙</span>
           アルゴリズムと理論
         </button>
       </div>
-      <div className="flex items-center justify-center gap-2 mt-2 opacity-70 hover:opacity-100 transition-opacity">
-        <div className="w-5 h-5 rounded-full overflow-hidden shadow-sm border border-slate-200">
+      <div className="flex items-center justify-center gap-2 mt-2 opacity-60 hover:opacity-100 transition-opacity">
+        <div className="w-4 h-4 rounded-full overflow-hidden grayscale">
           <img src="/icon-dt.png" alt="D.T." className="w-full h-full object-cover" />
         </div>
-        <p className="text-[10px] font-black text-slate-500 tracking-[0.2em] uppercase">
+        <p className="text-[10px] font-semibold text-slate-400 tracking-[0.2em] uppercase">
           Algorithm by D.T.
         </p>
       </div>
@@ -511,24 +503,24 @@ export default function Home() {
   )
 
   const MethodologyModal = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-white rounded-[2rem] max-w-lg w-full relative my-8 p-6 sm:p-8 shadow-2xl">
-        <button onClick={() => setShowMethodology(false)} className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition-colors">✕</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-white rounded-2xl max-w-lg w-full relative my-8 p-8 shadow-sm border border-slate-200">
+        <button onClick={() => setShowMethodology(false)} className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors">✕</button>
         
         <div className="text-center mb-8 mt-2">
-          <div className="w-20 h-20 mx-auto mb-4 rounded-full border-4 border-white shadow-lg overflow-hidden bg-slate-100">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full border border-slate-200 overflow-hidden grayscale">
              <img src="/icon-dt.png" alt="Developer" className="w-full h-full object-cover"/>
           </div>
-          <h3 className="text-2xl font-black text-slate-800 tracking-tight">開発者の想い</h3>
-          <p className="text-xs font-bold text-slate-400 mt-2 tracking-widest uppercase">By D.T.</p>
+          <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">開発者の想い</h3>
+          <p className="text-[10px] font-semibold text-slate-400 mt-2 tracking-widest uppercase">By D.T.</p>
         </div>
 
-        <div className="space-y-6 text-sm text-slate-600 leading-relaxed max-h-[50vh] overflow-y-auto pr-3">
+        <div className="space-y-6 text-sm text-slate-600 leading-relaxed max-h-[50vh] overflow-y-auto pr-2">
           <div className="space-y-4">
             {DEVELOPER_THOUGHTS.map((text, i) => {
               if (text.includes('最高のパートナー')) {
                 const parts = text.split('最高のパートナー');
-                return <p key={i}>{parts[0]}<strong className="text-indigo-600 border-b border-indigo-200 pb-0.5">最高のパートナー</strong>{parts[1]}</p>
+                return <p key={i}>{parts[0]}<strong className="text-slate-900 border-b border-slate-300 pb-0.5">最高のパートナー</strong>{parts[1]}</p>
               }
               return <p key={i}>{text}</p>
             })}
@@ -540,24 +532,24 @@ export default function Home() {
 
   const AlgorithmModal = () => {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-        <div className="bg-white rounded-[2rem] max-w-lg w-full relative my-8 p-6 sm:p-8 shadow-2xl">
-          <button onClick={() => setShowAlgorithm(false)} className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition-colors">✕</button>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
+        <div className="bg-white rounded-2xl max-w-lg w-full relative my-8 p-8 shadow-sm border border-slate-200">
+          <button onClick={() => setShowAlgorithm(false)} className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors">✕</button>
           
           <div className="text-center mb-8 mt-2">
-            <h3 className="text-2xl font-black text-slate-800 tracking-tight">アルゴリズムと理論</h3>
-            <p className="text-xs font-bold text-indigo-500 mt-2 tracking-widest uppercase">Logic & Science</p>
+            <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">アルゴリズムと理論</h3>
+            <p className="text-[10px] font-semibold text-slate-400 mt-2 tracking-widest uppercase">Logic & Science</p>
           </div>
 
           <div className="space-y-4 text-sm text-slate-600 leading-relaxed max-h-[60vh] overflow-y-auto pr-2 pb-2">
             {COLUMNS.map((col, idx) => (
-              <div key={idx} className="bg-slate-50 p-5 rounded-2xl border border-slate-100 relative overflow-hidden group hover:border-indigo-200 transition-colors">
-                <div className="absolute top-0 left-0 w-1 h-full bg-slate-300 group-hover:bg-indigo-400 transition-colors"></div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[10px] font-black text-slate-400 font-mono">{(idx + 1).toString().padStart(2, '0')}</span>
+              <div key={idx} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group hover:border-slate-300 transition-colors">
+                <div className="absolute top-0 left-0 w-1 h-full bg-slate-200 group-hover:bg-slate-800 transition-colors"></div>
+                <div className="flex items-center gap-3 mb-2 pl-2">
+                  <span className="text-[10px] font-semibold text-slate-400 font-mono">{(idx + 1).toString().padStart(2, '0')}</span>
                   <h4 className="font-bold text-slate-800">{col.title}</h4>
                 </div>
-                <p className="text-xs text-slate-600 leading-relaxed pl-6">{col.text}</p>
+                <p className="text-xs text-slate-500 leading-relaxed pl-8">{col.text}</p>
               </div>
             ))}
           </div>
@@ -570,10 +562,10 @@ export default function Home() {
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">
       <div className="max-w-md w-full mx-auto relative mt-4">
         <div className="mb-12 text-center">
-          <p className="text-slate-400 font-bold tracking-[0.2em] text-xs mb-3 uppercase">
+          <p className="text-slate-400 font-semibold tracking-widest text-xs mb-3 uppercase">
             Psychology & Math
           </p>
-          <h1 className="text-4xl md:text-5xl font-black mb-6 tracking-tight text-slate-900">
+          <h1 className="text-4xl md:text-5xl font-extrabold mb-6 tracking-tight text-slate-900">
             価値観マッチング
           </h1>
           
@@ -581,24 +573,24 @@ export default function Home() {
             <p className="mb-2">たった8つの質問に直感で答えるだけ。</p>
             <p>
               心理学の「類似性」と「相補性」に基づき、<br/>
-              価値観が重なる<strong className="text-slate-900">「最高の理解者」</strong>と、<br/>
-              自分にない視点をもたらす<strong className="text-slate-900">「最強の相棒」</strong>を<br/>
+              価値観が重なる<strong className="text-slate-900 font-bold">「最高の理解者」</strong>と、<br/>
+              自分にない視点をもたらす<strong className="text-slate-900 font-bold">「最強の相棒」</strong>を<br/>
               見つけ出します。
             </p>
-            <p className="mt-5 text-[10px] font-black text-slate-400 tracking-widest uppercase border border-slate-200 rounded-full px-3 py-1 inline-block">
+            <p className="mt-5 text-[10px] font-semibold text-slate-400 tracking-widest uppercase border border-slate-200 rounded-full px-4 py-1.5 inline-block bg-white shadow-sm">
               飲み会やチームの話題作りに
             </p>
           </div>
         </div>
 
-        <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-xl shadow-slate-200/40 border border-slate-100 mb-8">
-          {errorMsg && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold text-center border border-rose-100">{errorMsg}</div>}
+        <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 mb-8">
+          {errorMsg && <div className="bg-slate-50 text-slate-800 p-4 rounded-xl mb-6 text-sm font-medium text-center border border-slate-200">{errorMsg}</div>}
           <div className="mb-8 text-center">
-            <label className="block text-sm font-bold text-slate-700 mb-3">ニックネームを入力して開始</label>
+            <label className="block text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wider">Nickname</label>
             <input type="text" placeholder="例：アキラ" value={userName} onChange={(e) => setUserName(e.target.value)}
-              className="w-full p-4 rounded-2xl bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all text-lg font-bold text-center border border-slate-100" maxLength={10} />
+              className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none transition-all text-lg font-medium text-center" maxLength={10} />
           </div>
-          <button onClick={handleNextToRoomSelect} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 active:scale-[0.98] transition-all shadow-md shadow-indigo-200">
+          <button onClick={handleNextToRoomSelect} className="w-full py-4 rounded-xl bg-slate-900 text-white font-medium text-lg hover:bg-slate-800 active:scale-[0.98] transition-all shadow-sm">
             次へ進む
           </button>
         </div>
@@ -614,28 +606,28 @@ export default function Home() {
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">
       <div className="max-w-md w-full mx-auto">
         <div className="mb-6">
-          <button onClick={() => setCurrentView('NAME_INPUT')} className="text-sm font-bold text-slate-400 hover:text-slate-600 flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-slate-100 transition-colors">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-            名前変更に戻る
+          <button onClick={() => setCurrentView('NAME_INPUT')} className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-slate-200 transition-colors uppercase tracking-wider">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+            Back
           </button>
         </div>
-        <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-xl shadow-slate-200/50 border border-slate-100 mb-6">
-          {errorMsg && <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl mb-6 text-sm font-bold text-center border border-rose-100">{errorMsg}</div>}
+        <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 mb-6">
+          {errorMsg && <div className="bg-slate-50 text-slate-800 p-4 rounded-xl mb-6 text-sm font-medium text-center border border-slate-200">{errorMsg}</div>}
           <div className="space-y-8">
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">新しく始める（幹事用）</label>
-              <button onClick={handleCreateRoom} className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">新しくルームを作る</button>
+              <label className="block text-sm font-bold text-slate-800 mb-3 ml-1">新しく始める（幹事用）</label>
+              <button onClick={handleCreateRoom} className="w-full py-4 rounded-xl bg-slate-900 text-white font-medium text-lg hover:bg-slate-800 active:scale-[0.98] transition-all shadow-sm">新しくルームを作る</button>
             </div>
             <div className="relative py-2">
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
-              <div className="relative flex justify-center"><span className="px-4 bg-white text-xs font-bold tracking-widest text-slate-400 uppercase">OR</span></div>
+              <div className="relative flex justify-center"><span className="px-4 bg-white text-[10px] font-semibold tracking-widest text-slate-400 uppercase">or</span></div>
             </div>
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-3 ml-1">招待されたルームに参加</label>
+              <label className="block text-sm font-bold text-slate-800 mb-3 ml-1">招待されたルームに参加</label>
               <div className="flex flex-col sm:flex-row gap-3">
                 <input type="text" placeholder="4桁のパスコード" value={joinCodeInput} onChange={(e) => setJoinCodeInput(e.target.value)}
-                  className="flex-1 p-4 rounded-2xl bg-slate-50 text-center text-xl tracking-widest focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-mono text-slate-700" maxLength={4} />
-                <button onClick={handleJoinRoom} className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-slate-800 text-white font-bold hover:bg-slate-900 hover:shadow-lg active:scale-[0.98] transition-all">参加する</button>
+                  className="flex-1 p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xl tracking-widest focus:bg-white focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none transition-all font-mono text-slate-800" maxLength={4} />
+                <button onClick={handleJoinRoom} className="w-full sm:w-auto px-8 py-4 rounded-xl bg-slate-800 text-white font-medium hover:bg-slate-700 active:scale-[0.98] transition-all shadow-sm">参加する</button>
               </div>
             </div>
           </div>
@@ -650,45 +642,45 @@ export default function Home() {
   if (currentView === 'LOBBY') return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col py-8 px-4 relative">
       <div className="max-w-md w-full mx-auto flex flex-col items-center flex-grow justify-center">
-        <span className="text-sm font-bold text-slate-400 mb-2 tracking-widest uppercase">Room PIN</span>
-        <div className="text-6xl sm:text-7xl font-black tracking-widest text-indigo-600 mb-6 font-mono drop-shadow-sm">{roomCode}</div>
+        <span className="text-xs font-semibold text-slate-400 mb-3 tracking-widest uppercase">Room PIN</span>
+        <div className="text-6xl sm:text-7xl font-extrabold tracking-widest text-slate-900 mb-8 font-mono">{roomCode}</div>
         
         <div className="mb-10 w-full text-center">
-          <button onClick={copyInviteText} className="inline-flex items-center gap-2 bg-white text-slate-600 font-bold py-3 px-6 rounded-full shadow-sm border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 transition-all text-sm active:scale-95">
+          <button onClick={copyInviteText} className="inline-flex items-center gap-2 bg-white text-slate-700 font-medium py-3 px-6 rounded-full shadow-sm border border-slate-200 hover:border-slate-400 hover:text-slate-900 transition-colors text-sm active:scale-95">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
             招待テキストとURLをコピー
           </button>
-          {copySuccess && <p className="text-xs text-emerald-500 font-bold mt-3 animate-pulse">{copySuccess}</p>}
+          {copySuccess && <p className="text-xs text-slate-500 font-medium mt-3 animate-pulse">{copySuccess}</p>}
         </div>
         
-        <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-xl shadow-slate-200/50 border border-slate-100 w-full mb-8">
+        <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 w-full mb-8">
           <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-4">
-            <h3 className="text-base font-bold text-slate-800">参加メンバー</h3>
-            <span className="bg-indigo-50 text-indigo-600 text-sm font-bold px-3 py-1 rounded-full">{roomParticipants.length} 人</span>
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Members</h3>
+            <span className="bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 rounded-full">{roomParticipants.length}</span>
           </div>
           <ul className="space-y-3 mb-2">
             {roomParticipants.map((p) => (
-              <li key={p.id} className="flex items-center text-slate-700 font-bold p-3 bg-slate-50 rounded-2xl">
+              <li key={p.id} className="flex items-center text-slate-700 font-medium p-3 bg-slate-50 rounded-xl border border-slate-100">
                 {p.user_id === userId ? (
-                  <div className="w-6 h-6 rounded-full border-2 border-white shadow-sm overflow-hidden bg-slate-100 mr-3 relative">
+                  <div className="w-5 h-5 rounded-full border border-slate-300 overflow-hidden bg-slate-200 mr-3 grayscale relative">
                      <img src="/icon-dt.png" alt="Me" className="w-full h-full object-cover" />
                   </div>
                 ) : (
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 mr-3 shadow-sm mx-1.5" />
+                  <span className="w-2 h-2 rounded-full bg-slate-400 mr-4 ml-1.5" />
                 )}
                 {p.name}
-                {p.user_id === userId && <span className="ml-auto text-[10px] font-black text-indigo-600 bg-indigo-100 px-2 py-1 rounded-md uppercase tracking-wider">You</span>}
+                {p.user_id === userId && <span className="ml-auto text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-1 rounded-md uppercase tracking-wider">You</span>}
               </li>
             ))}
           </ul>
-          <button onClick={addDummyUsers} className="w-full py-4 mt-6 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 text-sm font-bold hover:bg-slate-50 hover:text-indigo-500 hover:border-indigo-200 transition-colors">+ テスト用メンバーを追加</button>
+          <button onClick={addDummyUsers} className="w-full py-4 mt-6 rounded-xl border border-dashed border-slate-300 text-slate-500 text-xs font-medium hover:bg-slate-50 hover:text-slate-800 hover:border-slate-400 transition-colors tracking-wide">+ テスト用メンバーを追加</button>
         </div>
         
         <button onClick={startGame} disabled={roomParticipants.length < 2}
-          className={`w-full py-5 rounded-2xl font-bold text-lg transition-all active:scale-[0.98] ${roomParticipants.length < 2 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200'}`}>
+          className={`w-full py-5 rounded-xl font-medium text-lg transition-colors duration-200 shadow-sm ${roomParticipants.length < 2 ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' : 'bg-slate-900 text-white hover:bg-slate-800 active:scale-[0.98]'}`}>
           {roomParticipants.length < 2 ? '2人以上で開始できます' : '全員揃ったらスタート'}
         </button>
-        <p className="text-xs font-bold text-slate-400 mt-3">※参加者なら誰でもスタートボタンを押せます</p>
+        <p className="text-[10px] font-semibold text-slate-400 mt-4 tracking-widest">※参加者なら誰でもスタート可能です</p>
       </div>
       <ResetButton />
     </div>
@@ -701,20 +693,19 @@ export default function Home() {
         <div className="max-w-2xl w-full mx-auto flex-grow flex flex-col justify-center">
           <div className="flex flex-col md:flex-row justify-between md:items-end mb-8 gap-4 px-2">
             <div>
-              <span className="text-slate-400 text-xs font-black uppercase tracking-widest block mb-2">Question {currentQIdx + 1} / {QUESTIONS.length}</span>
-              <span className="inline-block bg-white text-slate-800 border border-slate-200 text-sm font-bold px-4 py-1.5 rounded-full shadow-sm">{q.dim}</span>
+              <span className="text-slate-400 text-xs font-bold uppercase tracking-widest block mb-2">Question {currentQIdx + 1} / {QUESTIONS.length}</span>
+              <span className="inline-block bg-white text-slate-700 border border-slate-200 text-xs font-semibold px-3 py-1 rounded-full shadow-sm">{q.dim}</span>
             </div>
-            <div className="w-full md:w-1/3 bg-slate-200 rounded-full h-2 overflow-hidden">
-              <div className="bg-slate-800 h-full transition-all duration-500 ease-out" style={{ width: `${(currentQIdx / QUESTIONS.length) * 100}%` }} />
+            <div className="w-full md:w-1/3 bg-slate-200 rounded-full h-1.5 overflow-hidden">
+              <div className="bg-slate-900 h-full transition-all duration-500 ease-out" style={{ width: `${(currentQIdx / QUESTIONS.length) * 100}%` }} />
             </div>
           </div>
-          <div className="bg-white rounded-[2rem] p-8 sm:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 mb-8 min-h-[200px] flex items-center justify-center relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-slate-800" />
-            <h2 className="text-2xl md:text-3xl font-bold text-slate-800 leading-relaxed text-center">{q.text}</h2>
+          <div className="bg-white rounded-2xl p-8 sm:p-10 shadow-sm border border-slate-200 mb-8 min-h-[200px] flex items-center justify-center relative overflow-hidden">
+            <h2 className="text-2xl md:text-3xl font-extrabold text-slate-800 leading-relaxed text-center tracking-tight">{q.text}</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button onClick={() => handleAnswer(1)} className="p-6 rounded-[1.5rem] bg-white border border-slate-200 text-xl font-bold text-slate-700 hover:border-slate-800 hover:bg-slate-50 hover:text-slate-900 active:scale-95 transition-all shadow-sm">{q.a}</button>
-            <button onClick={() => handleAnswer(-1)} className="p-6 rounded-[1.5rem] bg-white border border-slate-200 text-xl font-bold text-slate-700 hover:border-slate-800 hover:bg-slate-50 hover:text-slate-900 active:scale-95 transition-all shadow-sm">{q.b}</button>
+            <button onClick={() => handleAnswer(1)} className="p-6 rounded-xl bg-white border border-slate-200 text-lg font-medium text-slate-700 hover:border-slate-900 hover:bg-slate-50 hover:text-slate-900 active:scale-95 transition-all shadow-sm">{q.a}</button>
+            <button onClick={() => handleAnswer(-1)} className="p-6 rounded-xl bg-white border border-slate-200 text-lg font-medium text-slate-700 hover:border-slate-900 hover:bg-slate-50 hover:text-slate-900 active:scale-95 transition-all shadow-sm">{q.b}</button>
           </div>
         </div>
         <ResetButton />
@@ -727,34 +718,34 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col py-8 px-4 relative">
         <div className="max-w-md w-full mx-auto text-center flex-grow flex flex-col justify-center">
-          <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-emerald-100 border border-slate-100">
-            <svg className="w-12 h-12 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+          <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm border border-slate-200">
+            <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
           </div>
-          <h2 className="text-3xl font-black text-slate-800 mb-2">回答完了</h2>
-          <p className="text-slate-500 font-medium mb-8">全員が答え終わるのを待っています...</p>
-          <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 text-left mb-6">
+          <h2 className="text-2xl font-extrabold text-slate-800 mb-2 tracking-tight">回答完了</h2>
+          <p className="text-slate-500 font-medium mb-8 text-sm">全員が答え終わるのを待っています...</p>
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 text-left mb-6">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
-              <h3 className="text-sm font-bold text-slate-600">進行状況</h3>
-              <span className="text-indigo-600 font-black text-xl font-mono">{roomParticipants.filter((p) => p.is_finished).length} / {roomParticipants.length}</span>
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Status</h3>
+              <span className="text-slate-900 font-extrabold text-lg font-mono">{roomParticipants.filter((p) => p.is_finished).length} / {roomParticipants.length}</span>
             </div>
             <ul className="space-y-3">
               {roomParticipants.map((p) => (
-                <li key={p.id} className="flex justify-between items-center text-sm font-bold p-3 rounded-2xl bg-slate-50">
+                <li key={p.id} className="flex justify-between items-center text-sm font-medium p-3 rounded-xl bg-slate-50 border border-slate-100">
                   <span className={p.is_finished ? 'text-slate-800' : 'text-slate-400'}>{p.name}</span>
-                  {p.is_finished ? <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-xs">完了</span>
-                    : <span className="text-slate-400 text-xs flex items-center gap-2"><span className="w-2 h-2 bg-slate-300 rounded-full animate-pulse" />考え中</span>}
+                  {p.is_finished ? <span className="px-2.5 py-1 bg-slate-200 text-slate-700 rounded-md text-[10px] font-bold uppercase tracking-wider">Done</span>
+                    : <span className="text-slate-400 text-xs flex items-center gap-2"><span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-pulse" />考え中</span>}
                 </li>
               ))}
             </ul>
           </div>
-          <div className="bg-indigo-50/50 rounded-[2rem] p-6 text-left min-h-[140px] flex flex-col justify-center border border-indigo-100/50">
-            <span className="text-xs font-black text-indigo-400 mb-2 block uppercase tracking-wider">Column</span>
+          <div className="bg-slate-50 rounded-2xl p-6 text-left min-h-[140px] flex flex-col justify-center border border-slate-200">
+            <span className="text-[10px] font-bold text-slate-400 mb-2 block uppercase tracking-widest">Column</span>
             <h4 className="font-bold text-slate-800 mb-2">{col.title}</h4>
-            <p className="text-xs text-slate-600 leading-relaxed">{col.text}</p>
+            <p className="text-xs text-slate-500 leading-relaxed">{col.text}</p>
           </div>
           
           {allFinished && (
-            <button onClick={triggerCalculation} className="mt-10 w-full py-5 rounded-2xl bg-indigo-600 text-white font-bold text-xl hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-200 active:scale-[0.98] transition-all">結果を解析する</button>
+            <button onClick={triggerCalculation} className="mt-10 w-full py-4 rounded-xl bg-slate-900 text-white font-medium text-lg hover:bg-slate-800 active:scale-[0.98] transition-all shadow-sm">結果を解析する</button>
           )}
         </div>
         <ResetButton />
@@ -764,12 +755,12 @@ export default function Home() {
 
   if (currentView === 'CALCULATING') return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center">
-      <div className="relative w-20 h-20 mb-8 flex justify-center items-center">
-        <div className="absolute inset-0 border-4 border-indigo-100 rounded-full" />
-        <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin" />
+      <div className="relative w-16 h-16 mb-8 flex justify-center items-center">
+        <div className="absolute inset-0 border-2 border-slate-200 rounded-full" />
+        <div className="absolute inset-0 border-2 border-slate-800 rounded-full border-t-transparent animate-spin" />
       </div>
-      <h2 className="text-2xl font-black text-slate-800 mb-2 tracking-widest">解析中...</h2>
-      <p className="text-sm text-slate-500 font-medium">多次元ベクトル空間での距離を測定しています</p>
+      <h2 className="text-xl font-extrabold text-slate-800 mb-2 tracking-tight">解析中...</h2>
+      <p className="text-xs text-slate-500 font-medium">多次元ベクトル空間での距離を測定しています</p>
     </div>
   )
 
@@ -777,9 +768,9 @@ export default function Home() {
     const results = calculateEnhancedResults();
     if (!results) return (
       <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center">
-        <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200 text-center max-w-md w-full mx-4">
-          <p className="mb-6 font-bold text-gray-600">計算に必要なデータが足りません。</p>
-          <button onClick={completelyResetGame} className="w-full py-4 bg-slate-100 rounded-2xl font-bold text-slate-600 hover:bg-slate-200">トップに戻る</button>
+        <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 text-center max-w-md w-full mx-4">
+          <p className="mb-6 font-medium text-slate-600 text-sm">計算に必要なデータが足りません。</p>
+          <button onClick={completelyResetGame} className="w-full py-3 bg-slate-100 rounded-xl font-medium text-slate-700 hover:bg-slate-200 transition-colors">トップに戻る</button>
         </div>
       </div>
     )
@@ -787,12 +778,11 @@ export default function Home() {
     const mapData = generate2DMapData(roomParticipants);
 
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-800 font-sans py-10 px-4 relative">
-        {/* フローティング「最初から」ボタン */}
+      <div className="min-h-screen bg-slate-50 text-slate-800 font-sans py-12 px-4 relative">
         <div className="fixed bottom-6 right-6 z-40">
           <button 
             onClick={completelyResetGame} 
-            className="flex items-center justify-center gap-2 bg-slate-800 text-white px-5 py-3 rounded-full font-bold shadow-lg shadow-slate-300 hover:bg-slate-900 active:scale-95 transition-all border border-slate-700"
+            className="flex items-center justify-center gap-2 bg-slate-900 text-white px-5 py-3 rounded-full font-medium shadow-sm hover:bg-slate-800 active:scale-95 transition-all border border-slate-700 text-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
             最初から
@@ -801,78 +791,78 @@ export default function Home() {
 
         {showMethodology && <MethodologyModal />}
         {showAlgorithm && <AlgorithmModal />}
-        <div className="max-w-3xl w-full mx-auto pb-10">
-          <div className="text-center mb-12">
-            <span className="text-xs font-black text-indigo-500 tracking-[0.2em] uppercase mb-3 block">Analysis Result</span>
-            <h1 className="text-4xl md:text-5xl font-black text-slate-800 tracking-tight">診断結果</h1>
+        
+        <div className="max-w-3xl w-full mx-auto pb-12">
+          <div className="text-center mb-16">
+            <span className="text-[10px] font-bold text-slate-400 tracking-[0.3em] uppercase mb-4 block">Analysis Result</span>
+            <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight">診断結果</h1>
           </div>
           
-          <div className="space-y-10">
+          <div className="space-y-12">
 
-            {/* 1. 一番盛り上がる: ベストペア */}
+            {/* 1. ベストペア */}
             <section>
-              <div className="mb-4 text-center">
-                <h3 className="font-black text-slate-800 text-2xl tracking-tight">最も価値観が近い2人</h3>
-                <p className="text-sm text-slate-500 mt-2 font-medium">心理学の「類似性の法則」に基づき、考え方のベクトルが似ているため、一緒にいて自然体でいられる関係です。</p>
+              <div className="mb-6 text-center">
+                <h3 className="font-extrabold text-slate-900 text-2xl tracking-tight">最も価値観が近い2人</h3>
+                <p className="text-xs text-slate-500 mt-2 font-medium">心理学の「類似性の法則」に基づき、考え方のベクトルが似ているため、一緒にいて自然体でいられる関係です。</p>
               </div>
-              <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 text-center relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1.5 bg-slate-800" />
-                <div className="flex items-center justify-center gap-4 mb-8 mt-2">
-                  <span className="text-3xl md:text-4xl font-black text-slate-800">{results.best.p1.name.replace('(Bot)', '')}</span>
-                  <span className="text-slate-300 text-3xl font-light">×</span>
-                  <span className="text-3xl md:text-4xl font-black text-slate-800">{results.best.p2.name.replace('(Bot)', '')}</span>
+              <div className="bg-white rounded-2xl p-8 md:p-12 shadow-sm border border-slate-200 text-center relative">
+                <div className="flex items-center justify-center gap-4 mb-8">
+                  <span className="text-3xl md:text-4xl font-extrabold text-slate-900">{results.best.p1.name.replace('(Bot)', '')}</span>
+                  <span className="text-slate-300 text-2xl font-light">×</span>
+                  <span className="text-3xl md:text-4xl font-extrabold text-slate-900">{results.best.p2.name.replace('(Bot)', '')}</span>
                 </div>
-                <div className="inline-flex items-baseline bg-slate-50 px-8 py-4 rounded-[2rem] border border-slate-100">
-                  <span className="text-sm font-black text-slate-400 mr-5 uppercase tracking-wider">MATCH</span>
-                  <span className="text-6xl font-black text-slate-800 tracking-tighter">{results.best.percent}</span>
-                  <span className="text-2xl font-bold text-slate-400 ml-1">%</span>
+                <div className="inline-flex items-baseline bg-slate-50 px-8 py-3 rounded-xl border border-slate-200">
+                  <span className="text-xs font-bold text-slate-400 mr-4 uppercase tracking-widest">Match</span>
+                  <span className="text-5xl font-extrabold text-slate-900 tracking-tighter">{results.best.percent}</span>
+                  <span className="text-xl font-bold text-slate-400 ml-1">%</span>
                 </div>
               </div>
             </section>
             
-            {/* 2. グループ内のアクセント: ワーストペア & 独自路線 */}
+            {/* 2. ワーストペア & 独自路線 */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <section>
-                <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 h-full flex flex-col justify-between">
+                <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 h-full flex flex-col justify-between">
                   <div>
-                    <h3 className="font-bold text-slate-800 text-lg mb-2">最も価値観が遠い2人</h3>
+                    <h3 className="font-extrabold text-slate-900 text-lg mb-2 tracking-tight">最も価値観が遠い2人</h3>
                     <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">心理学の「相補性の法則」に基づき、考え方が違うため、お互いの弱点をカバーし合える最強のチームになれる関係です。</p>
                   </div>
-                  <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 text-center">
-                    <div className="text-xl font-black text-slate-800 mb-3">{results.worst.p1.name.replace('(Bot)', '')} <span className="text-slate-300 font-normal mx-1">vs</span> {results.worst.p2.name.replace('(Bot)', '')}</div>
-                    <div><span className="text-xs font-bold text-slate-400 mr-2">類似度</span><span className="font-black text-2xl text-slate-800">{results.worst.percent}%</span></div>
+                  <div className="bg-slate-50 rounded-xl p-5 border border-slate-200 text-center">
+                    <div className="text-xl font-extrabold text-slate-900 mb-3">{results.worst.p1.name.replace('(Bot)', '')} <span className="text-slate-300 font-normal mx-2 text-sm">vs</span> {results.worst.p2.name.replace('(Bot)', '')}</div>
+                    <div><span className="text-[10px] font-bold text-slate-400 mr-2 uppercase tracking-wider">Similarity</span><span className="font-extrabold text-2xl text-slate-900">{results.worst.percent}%</span></div>
                   </div>
                 </div>
               </section>
               <section>
-                <div className="bg-white rounded-[2rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 h-full flex flex-col justify-between">
+                <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 h-full flex flex-col justify-between">
                   <div>
-                    <h3 className="font-bold text-slate-800 text-lg mb-2">最も独自路線を行く人</h3>
+                    <h3 className="font-extrabold text-slate-900 text-lg mb-2 tracking-tight">最も独自路線を行く人</h3>
                     <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">グループの平均値から最も外れた独自の感性を持つ、集団のマンネリ化を防ぐ貴重な存在です。</p>
                   </div>
-                  <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 text-center">
-                    <div className="text-2xl font-black text-slate-800 mb-2">{results.minority.name.replace('(Bot)', '')}</div>
-                    <div><span className="text-xs font-bold text-slate-400 mr-2">独自性スコア</span><span className="font-black text-2xl text-slate-800">{results.minority.uniquenessScore}%</span></div>
+                  <div className="bg-slate-50 rounded-xl p-5 border border-slate-200 text-center">
+                    <div className="text-2xl font-extrabold text-slate-900 mb-2">{results.minority.name.replace('(Bot)', '')}</div>
+                    <div><span className="text-[10px] font-bold text-slate-400 mr-2 uppercase tracking-wider">Uniqueness</span><span className="font-extrabold text-2xl text-slate-900">{results.minority.uniquenessScore}%</span></div>
                   </div>
                 </div>
               </section>
             </div>
 
-            {/* 3. 全員が自分ごととして楽しめる: 各自のベストマッチ */}
+            {/* 3. ベストマッチ一覧 */}
             <section>
-              <h3 className="text-lg font-black text-slate-800 border-b-2 border-slate-200 pb-3 mb-5 mt-4">参加者ごとのベストマッチ</h3>
+              <h3 className="text-base font-extrabold text-slate-900 border-b border-slate-200 pb-2 mb-6 mt-8 tracking-tight">参加者ごとのベストマッチ</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {results.personalBests.map((pb, i) => {
                    const personData = mapData.find(m => m.id === pb.me.id);
                    const title = personData ? personData.title : "";
                    
                    return (
-                    <div key={i} className="flex flex-col p-5 bg-white rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-indigo-400"></div>
-                      <span className="text-[10px] font-black text-indigo-500 mb-1 ml-2">{title}</span>
+                    <div key={i} className="flex flex-col p-4 bg-white rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-slate-800"></div>
+                      <span className="text-[10px] font-bold text-slate-500 mb-2 ml-2 tracking-wide">{title}</span>
                       <div className="flex justify-between items-center ml-2">
-                        <div className="font-bold text-slate-700 text-sm">{pb.me.name.replace('(Bot)', '')} <span className="text-slate-400 font-medium text-xs mx-2">の相手</span> <span className="text-slate-900 text-base">{pb.partner.name.replace('(Bot)', '')}</span></div>
-                        <div className="text-sm font-black text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">{pb.percent}%</div>
+                        <div className="font-medium text-slate-600 text-sm">{pb.me.name.replace('(Bot)', '')} <span className="text-slate-300 font-normal text-xs mx-1">の相手</span> <span className="text-slate-900 font-bold text-base border-b border-slate-300">{pb.partner.name.replace('(Bot)', '')}</span></div>
+                        <div className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-md">{pb.percent}%</div>
                       </div>
                     </div>
                   )
@@ -880,23 +870,23 @@ export default function Home() {
               </div>
             </section>
 
-            {/* 4. なぜそうなったのかの種明かし: 相関ネットワーク図（2Dマップ） */}
-            <section className="pt-10 border-t-2 border-dashed border-slate-200">
-              <div className="mb-4 text-center mt-4">
-                <h3 className="font-black text-slate-800 text-2xl tracking-tight">相関ネットワーク図</h3>
-                <p className="text-sm text-slate-500 mt-2 font-medium">8次元のデータを2次元に圧縮。誰と誰が繋がっているか（シンクロ率60%以上）を可視化しました。</p>
+            {/* 4. 相関ネットワーク図（2Dマップ） */}
+            <section className="pt-12 border-t border-slate-200">
+              <div className="mb-6 text-center">
+                <h3 className="font-extrabold text-slate-900 text-2xl tracking-tight">相関ネットワーク図</h3>
+                <p className="text-xs text-slate-500 mt-2 font-medium">8次元のデータを2次元に圧縮。誰と誰が繋がっているか（シンクロ率60%以上）を可視化しました。</p>
               </div>
-              <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 relative">
-                <div className="relative w-full aspect-square max-w-md mx-auto bg-slate-50/50 rounded-xl border border-slate-200 overflow-hidden">
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 relative">
+                <div className="relative w-full aspect-square max-w-md mx-auto bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
                   <div className="absolute top-1/2 left-0 w-full h-px bg-slate-200" />
                   <div className="absolute top-0 left-1/2 w-px h-full bg-slate-200" />
-                  <div className="absolute top-1/2 left-1/2 w-full h-full border border-slate-100 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
-                  <div className="absolute top-1/2 left-1/2 w-1/2 h-1/2 border border-slate-100 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
+                  <div className="absolute top-1/2 left-1/2 w-full h-full border border-slate-200 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
+                  <div className="absolute top-1/2 left-1/2 w-1/2 h-1/2 border border-slate-200 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
                   
-                  <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">規律・論理的</div>
-                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">柔軟・共感的</div>
-                  <div className="absolute top-1/2 left-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">保守・パッシブ</div>
-                  <div className="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-white/80 px-2 rounded-full">革新・アクティブ</div>
+                  <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 bg-slate-50/80 px-2 rounded-full">規律・論理的</div>
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400 bg-slate-50/80 px-2 rounded-full">柔軟・共感的</div>
+                  <div className="absolute top-1/2 left-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-slate-50/80 px-2 rounded-full">保守・パッシブ</div>
+                  <div className="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-bold text-slate-400 bg-slate-50/80 px-2 rounded-full">革新・アクティブ</div>
 
                   <svg className="absolute inset-0 w-full h-full pointer-events-none">
                     {results.allPairs.filter(p => p.percent >= 60).map((conn, i) => {
@@ -910,8 +900,8 @@ export default function Home() {
                           y1={`${50 - p1.ny * 0.4}%`} 
                           x2={`${50 + p2.nx * 0.4}%`} 
                           y2={`${50 - p2.ny * 0.4}%`} 
-                          stroke={conn.percent >= 80 ? "#818cf8" : "#cbd5e1"} 
-                          strokeWidth={conn.percent >= 80 ? 3 : 1.5}
+                          stroke={conn.percent >= 80 ? "#64748b" : "#cbd5e1"} 
+                          strokeWidth={conn.percent >= 80 ? 2 : 1}
                           strokeDasharray={conn.percent >= 80 ? "0" : "4 4"}
                           className="transition-all duration-1000 ease-out"
                         />
@@ -925,9 +915,9 @@ export default function Home() {
                       className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-1000 ease-out"
                       style={{ left: `${50 + p.nx * 0.4}%`, top: `${50 - p.ny * 0.4}%` }}
                     >
-                      <div className={`rounded-full border-2 shadow-sm ${p.isMe ? 'bg-indigo-500 border-white w-5 h-5 z-20 ring-2 ring-indigo-200' : 'bg-emerald-400 border-white w-4 h-4 z-10'}`} />
+                      <div className={`rounded-full border-2 ${p.isMe ? 'bg-slate-900 border-white w-4 h-4 z-20' : 'bg-white border-slate-400 w-3 h-3 z-10'}`} />
                       <span 
-                        className={`text-[10px] font-bold mt-1 px-2 py-0.5 rounded shadow-sm whitespace-nowrap absolute border ${p.isMe ? 'bg-indigo-600 text-white border-indigo-500 z-30' : 'bg-white/95 backdrop-blur-sm text-slate-700 border-slate-200 z-20'}`}
+                        className={`text-[10px] font-semibold mt-1 px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap absolute border ${p.isMe ? 'bg-slate-900 text-white border-slate-800 z-30' : 'bg-white/90 backdrop-blur-sm text-slate-600 border-slate-200 z-20'}`}
                         style={{ top: `${p.labelOffsetY}px` }}
                       >
                         {p.name.replace('(Bot)', '')}
@@ -938,35 +928,35 @@ export default function Home() {
               </div>
             </section>
 
-            {/* 5. マップからの流れ: このグループの「隠れた掟」 */}
-            <section className="pt-10 border-t-2 border-dashed border-slate-200">
-              <div className="mb-4 text-center mt-4">
-                <h3 className="font-black text-slate-800 text-2xl tracking-tight">このグループの「隠れた掟」</h3>
-                <p className="text-sm text-slate-500 mt-2 font-medium">全員の回答の偏りから、この集団の暗黙のルールと致命的な弱点をあぶり出します。</p>
+            {/* 5. グループの「隠れた掟」 */}
+            <section className="pt-12 border-t border-slate-200">
+              <div className="mb-6 text-center">
+                <h3 className="font-extrabold text-slate-900 text-2xl tracking-tight">このグループの「隠れた掟」</h3>
+                <p className="text-xs text-slate-500 mt-2 font-medium">全員の回答の偏りから、この集団の暗黙のルールと弱点をあぶり出します。</p>
               </div>
-              <div className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-xl shadow-slate-200/50 border border-slate-100">
+              <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200">
                 {results.groupRules.length > 0 ? (
-                  <div className="space-y-6">
+                  <div className="space-y-8">
                     <div>
-                      <h4 className="text-sm font-bold text-indigo-500 mb-3 uppercase tracking-widest flex items-center gap-2">
-                        <span>📜</span> 支配的なルール
+                      <h4 className="text-xs font-bold text-slate-900 mb-3 uppercase tracking-widest border-b border-slate-200 pb-1">
+                        支配的なルール
                       </h4>
                       <ul className="space-y-2">
                         {results.groupRules.map((rule, i) => (
-                          <li key={i} className="text-slate-800 font-bold bg-indigo-50 px-4 py-3 rounded-xl border border-indigo-100 flex items-start gap-2">
-                            <span className="text-indigo-400 mt-0.5">✔</span> {rule}
+                          <li key={i} className="text-slate-700 font-medium text-sm flex items-start gap-2">
+                            <span className="text-slate-400 mt-0.5">―</span> {rule}
                           </li>
                         ))}
                       </ul>
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-rose-400 mb-3 uppercase tracking-widest flex items-center gap-2">
-                        <span>⚠️</span> 致命的な弱点
+                      <h4 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-widest border-b border-slate-100 pb-1">
+                        致命的な弱点
                       </h4>
                       <ul className="space-y-2">
                         {results.groupWeaknesses.map((weak, i) => (
-                          <li key={i} className="text-slate-700 font-bold bg-rose-50 px-4 py-3 rounded-xl border border-rose-100 flex items-start gap-2">
-                            <span className="text-rose-400 mt-0.5">!</span> {weak}
+                          <li key={i} className="text-slate-500 font-medium text-sm flex items-start gap-2">
+                            <span className="text-slate-300 mt-0.5">―</span> {weak}
                           </li>
                         ))}
                       </ul>
@@ -974,41 +964,41 @@ export default function Home() {
                   </div>
                 ) : (
                   <div className="text-center py-8">
-                    <span className="text-4xl mb-3 block">⚖️</span>
-                    <p className="text-slate-800 font-bold text-lg">究極のバランス型集団</p>
-                    <p className="text-sm text-slate-500 mt-2">突出して偏ったルールがなく、多様な価値観が美しく共存している奇跡のグループです。</p>
+                    <p className="text-slate-900 font-extrabold text-lg tracking-tight">究極のバランス型集団</p>
+                    <p className="text-xs text-slate-500 mt-2 font-medium leading-relaxed">突出して偏ったルールがなく、多様な価値観が美しく共存している奇跡のグループです。</p>
                   </div>
                 )}
               </div>
             </section>
             
-            {/* 6. おまけ: 詳細なグループの回答分布 */}
-            <section className="pt-10 border-t-2 border-dashed border-slate-200">
-              <div className="mb-10 text-center">
-                <h3 className="font-black text-slate-800 text-2xl tracking-tight">グループの回答分布</h3>
-                <p className="text-sm text-slate-500 mt-2 font-medium">みんながどちらの回答を選んだかの割合データです。</p>
+            {/* 6. グループの回答分布 */}
+            <section className="pt-12 border-t border-slate-200">
+              <div className="mb-8 text-center">
+                <h3 className="font-extrabold text-slate-900 text-2xl tracking-tight">グループの回答分布</h3>
+                <p className="text-xs text-slate-500 mt-2 font-medium">みんながどちらの回答を選んだかの割合データです。</p>
               </div>
-              <div className="bg-white rounded-[2rem] p-6 sm:p-10 shadow-xl shadow-slate-200/50 border border-slate-100 space-y-10">
+              <div className="bg-white rounded-2xl p-6 sm:p-10 shadow-sm border border-slate-200 space-y-10">
                 {QUESTIONS.map((q, idx) => {
                   const stats = results.questionStats[idx]
                   return (
                     <div key={idx} className="border-b border-slate-100 pb-8 last:border-0 last:pb-0">
                       <p className="text-sm font-bold text-slate-800 mb-4 leading-relaxed">{q.text}</p>
                       
-                      <div className="flex flex-col gap-2 mb-4">
-                        <div className="flex justify-between items-center text-xs bg-indigo-50/50 p-2 rounded-lg">
-                          <span className="w-4/5 pr-3 text-slate-700 font-medium leading-snug">{q.a}</span>
-                          <span className="font-black text-indigo-600 text-sm">{stats.aPercent}%</span>
+                      <div className="flex flex-col gap-2 mb-3">
+                        <div className="flex justify-between items-center text-xs px-1">
+                          <span className="w-[85%] pr-3 text-slate-600 font-medium leading-snug">{q.a}</span>
+                          <span className="font-bold text-slate-900">{stats.aPercent}%</span>
                         </div>
-                        <div className="flex justify-between items-center text-xs bg-rose-50/50 p-2 rounded-lg">
-                          <span className="w-4/5 pr-3 text-slate-700 font-medium leading-snug">{q.b}</span>
-                          <span className="font-black text-rose-500 text-sm">{stats.bPercent}%</span>
+                        <div className="flex justify-between items-center text-xs px-1 mt-2">
+                          <span className="w-[85%] pr-3 text-slate-600 font-medium leading-snug">{q.b}</span>
+                          <span className="font-bold text-slate-500">{stats.bPercent}%</span>
                         </div>
                       </div>
 
-                      <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
-                        <div style={{ width: `${stats.aPercent}%` }} className="bg-indigo-500 h-full transition-all duration-1000" />
-                        <div style={{ width: `${stats.bPercent}%` }} className="bg-rose-400 h-full transition-all duration-1000" />
+                      {/* 抜け感を出すための細いプログレスバー */}
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex mt-2">
+                        <div style={{ width: `${stats.aPercent}%` }} className="bg-slate-800 h-full transition-all duration-1000" />
+                        <div style={{ width: `${stats.bPercent}%` }} className="bg-slate-300 h-full transition-all duration-1000" />
                       </div>
                     </div>
                   )
@@ -1019,7 +1009,7 @@ export default function Home() {
           </div>
 
           <div className="mt-16 flex flex-col gap-5 max-w-sm mx-auto pb-8">
-            <button onClick={completelyResetGame} className="w-full py-5 bg-slate-800 text-white rounded-2xl font-bold text-lg hover:bg-slate-900 active:scale-[0.98] transition-all shadow-lg">最初からもう一度遊ぶ</button>
+            <button onClick={completelyResetGame} className="w-full py-4 bg-slate-900 text-white rounded-xl font-medium text-lg hover:bg-slate-800 active:scale-[0.98] transition-all shadow-sm">最初からもう一度遊ぶ</button>
           </div>
         </div>
         <DeveloperCredit />

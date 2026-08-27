@@ -5,8 +5,188 @@ import { supabase } from '@/lib/supabaseClient'
 import { QUESTIONS, COLUMNS, DEVELOPER_THOUGHTS } from '@/lib/questions'
 import { calculateResults } from '@/lib/matching'
 import type { Room, Participant } from '@/types/database'
+import {
+  cx,
+  Screen,
+  Button,
+  Card,
+  Eyebrow,
+  SectionHead,
+  Divider,
+  Avatar,
+  TextField,
+  Notice,
+  Spinner,
+  ProgressRing,
+  ScoreDial,
+  Mark,
+} from './components/ui'
+import { Modal } from './components/Modal'
+import { PasscodeInput } from './components/PasscodeInput'
+import { ValueMap, type MapPoint, type MapLink } from './components/ValueMap'
+
+/* ==================================================================
+   小さなヘルパー
+   ================================================================== */
+/** 「あきら(Bot)」→「あきら」 */
+const clean = (name: string) => name.replace('(Bot)', '').trim()
+const isBot = (name: string) => name.includes('(Bot)')
+/** 「開放性（新奇性の探求 vs 保守性）」→「開放性」 */
+const shortDim = (dim: string) => dim.split('（')[0]
+
+interface MappedPoint {
+  id: string
+  name: string
+  x: number
+  y: number
+  nx: number
+  ny: number
+  title: string
+  isMe: boolean
+}
 
 type View = 'NAME_INPUT' | 'ROOM_SELECT' | 'LOBBY' | 'PLAYING' | 'WAITING' | 'CALCULATING' | 'RESULT'
+
+
+/* ==================================================================
+   画面をまたいで使う部品
+   コンポーネント本体の中で定義すると毎レンダーで再マウントされ、
+   入力フォーカスやアニメーションが飛ぶため、必ずトップレベルに置く。
+   ================================================================== */
+
+/** 上部の細いバー。ルーム内のどの画面でも位置が変わらない拠り所になる */
+function AppBar({
+  title,
+  right,
+}: {
+  title?: string
+  right?: React.ReactNode
+}) {
+  return (
+    <div className="u-blur-bar sticky top-0 z-30 border-b border-line/80">
+      <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-4 px-5 sm:px-6">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Mark size={22} />
+          <span className="truncate text-[13px] font-semibold tracking-[0.02em] text-ink">
+            {title ?? '価値観マッチング'}
+          </span>
+        </div>
+        {right}
+      </div>
+    </div>
+  )
+}
+
+/** 4桁のパスコードを1桁ずつのタイルで見せる（入力欄と同じ形にして対応づける） */
+function PinTiles({ code }: { code: string }) {
+  return (
+    <div className="flex justify-center gap-2.5">
+      {code.split('').map((d, i) => (
+        <span
+          key={i}
+          className="u-num flex h-[74px] w-[58px] items-center justify-center rounded-[14px] border border-line bg-paper-raised font-mono text-[34px] font-semibold tracking-tight text-ink shadow-[0_1px_2px_rgba(20,18,16,0.04)]"
+        >
+          {d}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+/** 名前 + BOTバッジ */
+function NameTag({
+  name,
+  className,
+}: {
+  name: string
+  className?: string
+}) {
+  return (
+    <span className={cx('inline-flex items-baseline gap-1.5', className)}>
+      <span className="truncate">{clean(name)}</span>
+      {isBot(name) && (
+        <span className="translate-y-[-1px] rounded-[4px] border border-line px-1 py-[1px] text-[9px] font-bold tracking-[0.08em] text-ink-faint">
+          BOT
+        </span>
+      )}
+    </span>
+  )
+}
+
+/** 価値観の項目をチップで並べる */
+function DimChips({ dims, tone }: { dims: string[]; tone: 'ai' | 'shu' }) {
+  if (dims.length === 0) return null
+  return (
+    <ul className="flex flex-wrap justify-center gap-1.5">
+      {dims.map((d, i) => (
+        <li
+          key={i}
+          className={cx(
+            'rounded-full border px-2.5 py-1 text-[11px] font-semibold',
+            tone === 'ai'
+              ? 'border-ai-line bg-ai-soft text-ai'
+              : 'border-shu-line bg-shu-soft text-shu'
+          )}
+        >
+          {shortDim(d)}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** 退出リンク。目立たせず、しかし常に同じ場所に置く */
+function ExitLink({ onClick }: { onClick: () => void }) {
+  return (
+    <div className="pb-10 pt-12 text-center">
+      <button
+        onClick={onClick}
+        className="u-press rounded-full px-4 py-2 text-[12px] font-semibold text-ink-faint hover:bg-[rgba(20,18,16,0.05)] hover:text-ink-muted"
+      >
+        最初からやり直す（退出）
+      </button>
+    </div>
+  )
+}
+
+/** フッターのクレジット */
+function Credit({
+  onMethodology,
+  onAlgorithm,
+}: {
+  onMethodology: () => void
+  onAlgorithm: () => void
+}) {
+  return (
+    <footer className="pb-10 pt-14">
+      <div className="u-rule mb-7" />
+      <div className="flex flex-col items-center gap-5">
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <button
+            onClick={onMethodology}
+            className="u-press rounded-full border border-line bg-paper-raised px-4 py-2 text-[12px] font-semibold text-ink-soft hover:border-line-strong hover:text-ink"
+          >
+            開発者の想い
+          </button>
+          <button
+            onClick={onAlgorithm}
+            className="u-press rounded-full border border-line bg-paper-raised px-4 py-2 text-[12px] font-semibold text-ink-soft hover:border-line-strong hover:text-ink"
+          >
+            アルゴリズムと理論
+          </button>
+        </div>
+        <div className="flex items-center gap-2 opacity-70 transition-opacity duration-300 hover:opacity-100">
+          <img
+            src="/icon-dt.png"
+            alt=""
+            className="h-5 w-5 rounded-full object-cover grayscale"
+          />
+          <span className="u-eyebrow">Algorithm by D.T.</span>
+        </div>
+      </div>
+    </footer>
+  )
+}
 
 export default function Home() {
   const [userId, setUserId] = useState<string | null>(null)
@@ -383,659 +563,1146 @@ export default function Home() {
     return { ...res, groupRules, groupWeaknesses, allPairs: res.allPairs };
   }, [roomParticipants]);
 
-  const generate2DMapData = useCallback((parts: Participant[]) => {
+  /** 8次元の回答を「革新⇔保守」×「規律⇔柔軟」の2軸に落とし込む */
+  const generate2DMapData = useCallback((parts: Participant[]): MappedPoint[] => {
     const weights = [
-      { x: 1, y: 0 },    
-      { x: 0, y: -1 },   
-      { x: 1, y: 0 },    
-      { x: 0, y: 1 },    
-      { x: -1, y: 1 },   
-      { x: 1, y: -1 },   
-      { x: 1, y: 0 },    
-      { x: -1, y: 1 },   
-    ];
+      { x: 1, y: 0 },
+      { x: 0, y: -1 },
+      { x: 1, y: 0 },
+      { x: 0, y: 1 },
+      { x: -1, y: 1 },
+      { x: 1, y: -1 },
+      { x: 1, y: 0 },
+      { x: -1, y: 1 },
+    ]
 
-    let maxAbs = 0.1; 
-    const finishedParts = parts.filter(p => p.is_finished && Array.isArray(p.answers) && p.answers.length === QUESTIONS.length);
-    
-    let mapped = finishedParts.map(p => {
-      let x = 0; let y = 0;
-      (p.answers as number[]).forEach((ans, i) => {
-        x += ans * weights[i].x;
-        y += weights[i].y ? ans * weights[i].y : 0;
-      });
-      maxAbs = Math.max(maxAbs, Math.abs(x), Math.abs(y));
+    let maxAbs = 0.1
+    const finishedParts = parts.filter(
+      (p) => p.is_finished && Array.isArray(p.answers) && p.answers.length === QUESTIONS.length
+    )
 
-      let title = "";
-      if (x > 0 && y > 0) title = "論理的イノベーター";
-      else if (x > 0 && y <= 0) title = "情熱的チャレンジャー";
-      else if (x <= 0 && y > 0) title = "堅実なる守護者";
-      else title = "心優しきバランサー";
+    const mapped: MappedPoint[] = finishedParts.map((p) => {
+      let x = 0
+      let y = 0
+      ;(p.answers as number[]).forEach((ans, i) => {
+        x += ans * weights[i].x
+        y += weights[i].y ? ans * weights[i].y : 0
+      })
+      maxAbs = Math.max(maxAbs, Math.abs(x), Math.abs(y))
 
-      const distance = Math.sqrt(x*x + y*y);
-      if (distance > 3) title = `絶対的・${title}`;
-      else if (distance < 1) title = `マイルドな${title}`;
+      let title = ''
+      if (x > 0 && y > 0) title = '論理的イノベーター'
+      else if (x > 0 && y <= 0) title = '情熱的チャレンジャー'
+      else if (x <= 0 && y > 0) title = '堅実なる守護者'
+      else title = '心優しきバランサー'
 
-      return { id: p.id, name: p.name, x, y, title, isMe: p.user_id === userId, labelOffsetY: 20 };
-    });
+      const distance = Math.sqrt(x * x + y * y)
+      if (distance > 3) title = `絶対的・${title}`
+      else if (distance < 1) title = `マイルドな${title}`
 
-    mapped = mapped.map(p => ({
-      ...p,
-      nx: (p.x / maxAbs) * 100 + (Math.random() - 0.5) * 8, 
-      ny: (p.y / maxAbs) * 100 + (Math.random() - 0.5) * 8
-    }));
+      return { id: p.id, name: p.name, x, y, title, isMe: p.user_id === userId, nx: 0, ny: 0 }
+    })
 
+    // 正規化（重なりを避けるため、ごくわずかに散らす）
+    mapped.forEach((p) => {
+      p.nx = (p.x / maxAbs) * 100 + (Math.random() - 0.5) * 8
+      p.ny = (p.y / maxAbs) * 100 + (Math.random() - 0.5) * 8
+    })
+
+    // 反発シミュレーション：点同士が一定距離まで離れるまで押し合う
     for (let iter = 0; iter < 30; iter++) {
       for (let i = 0; i < mapped.length; i++) {
         for (let j = i + 1; j < mapped.length; j++) {
-          const dx = mapped[i].nx - mapped[j].nx;
-          const dy = mapped[i].ny - mapped[j].ny;
-          let dist = Math.sqrt(dx * dx + dy * dy);
-          
+          const dx = mapped[i].nx - mapped[j].nx
+          const dy = mapped[i].ny - mapped[j].ny
+          let dist = Math.sqrt(dx * dx + dy * dy)
+
           if (dist === 0) {
-            mapped[i].nx += 1;
-            dist = 1;
+            mapped[i].nx += 1
+            dist = 1
           }
-          
-          const minDist = 22; 
+
+          const minDist = 26
           if (dist < minDist) {
-            const force = (minDist - dist) / dist * 0.4;
-            mapped[i].nx += dx * force;
-            mapped[i].ny += dy * force;
-            mapped[j].nx -= dx * force;
-            mapped[j].ny -= dy * force;
+            const force = ((minDist - dist) / dist) * 0.4
+            mapped[i].nx += dx * force
+            mapped[i].ny += dy * force
+            mapped[j].nx -= dx * force
+            mapped[j].ny -= dy * force
           }
         }
       }
     }
 
-    mapped.forEach(p => {
-      p.nx = Math.max(-85, Math.min(85, p.nx));
-      p.ny = Math.max(-85, Math.min(85, p.ny));
-    });
+    mapped.forEach((p) => {
+      p.nx = Math.max(-85, Math.min(85, p.nx))
+      p.ny = Math.max(-85, Math.min(85, p.ny))
+    })
 
-    return mapped;
-  }, [userId]);
+    return mapped
+  }, [userId])
 
-  if (!userId || isRestoring) return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center gap-5">
-      <div className="relative flex justify-center items-center w-12 h-12">
-        <div className="absolute inset-0 border-2 border-slate-200 rounded-full"></div>
-        <div className="absolute inset-0 border-2 border-slate-800 rounded-full border-t-transparent animate-spin"></div>
-      </div>
-      <p className="text-xs font-semibold text-slate-400 tracking-widest uppercase">LOADING...</p>
-    </div>
-  )
+  // 設問画面はキーボードでも答えられるようにする（PC で一気に進めたい人向け）
+  useEffect(() => {
+    if (currentView !== 'PLAYING') return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const k = e.key.toLowerCase()
+      if (k === '1' || k === 'a' || k === 'arrowleft') { e.preventDefault(); handleAnswer(1) }
+      else if (k === '2' || k === 'b' || k === 'arrowright') { e.preventDefault(); handleAnswer(-1) }
+      else if (k === 'backspace') { e.preventDefault(); handleBack() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [currentView, handleAnswer, handleBack])
 
-  const ResetButton = () => (
-    <div className="mt-12 text-center pb-6">
-      <button onClick={completelyResetGame} className="text-xs font-semibold text-slate-400 hover:text-slate-800 transition-colors bg-white px-5 py-2.5 rounded-full shadow-sm border border-slate-200">
-        最初からやり直す（退出）
-      </button>
-    </div>
-  )
-
-  const DeveloperCredit = () => (
-    <div className="text-center mt-10 flex flex-col items-center gap-4 pb-8">
-      <div className="flex flex-col sm:flex-row gap-3">
-        <button onClick={() => setShowMethodology(true)} className="text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors flex items-center justify-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-100">
-          <span className="w-4 h-4 rounded-full border border-slate-400 flex items-center justify-center text-[10px]">i</span>
-          開発者の想い
-        </button>
-        <button onClick={() => setShowAlgorithm(true)} className="text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors flex items-center justify-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-100">
-          <span className="w-4 h-4 rounded-full border border-slate-400 flex items-center justify-center text-[10px]">⚙</span>
-          アルゴリズムと理論
-        </button>
-      </div>
-      <div className="flex items-center justify-center gap-2 mt-2 opacity-60 hover:opacity-100 transition-opacity">
-        <div className="w-4 h-4 rounded-full overflow-hidden grayscale">
-          <img src="/icon-dt.png" alt="D.T." className="w-full h-full object-cover" />
-        </div>
-        <p className="text-[10px] font-semibold text-slate-400 tracking-[0.2em] uppercase">
-          Algorithm by D.T.
-        </p>
-      </div>
-    </div>
-  )
-
-  const MethodologyModal = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-lg w-full relative my-8 p-8 shadow-sm border border-slate-200">
-        <button onClick={() => setShowMethodology(false)} className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors">✕</button>
-        
-        <div className="text-center mb-8 mt-2">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full border border-slate-200 overflow-hidden grayscale">
-             <img src="/icon-dt.png" alt="Developer" className="w-full h-full object-cover"/>
-          </div>
-          <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">開発者の想い</h3>
-          <p className="text-[10px] font-semibold text-slate-400 mt-2 tracking-widest uppercase">By D.T.</p>
-        </div>
-
-        <div className="space-y-6 text-sm text-slate-600 leading-relaxed max-h-[50vh] overflow-y-auto pr-2">
-          <div className="space-y-4">
-            {DEVELOPER_THOUGHTS.map((text, i) => {
-              if (text.includes('最高のパートナー')) {
-                const parts = text.split('最高のパートナー');
-                return <p key={i}>{parts[0]}<strong className="text-slate-900 border-b border-slate-300 pb-0.5">最高のパートナー</strong>{parts[1]}</p>
-              }
-              return <p key={i}>{text}</p>
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-
-  const AlgorithmModal = () => {
+  if (!userId || isRestoring)
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
-        <div className="bg-white rounded-2xl max-w-lg w-full relative my-8 p-8 shadow-sm border border-slate-200">
-          <button onClick={() => setShowAlgorithm(false)} className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors">✕</button>
-          
-          <div className="text-center mb-8 mt-2">
-            <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">アルゴリズムと理論</h3>
-            <p className="text-[10px] font-semibold text-slate-400 mt-2 tracking-widest uppercase">Logic & Science</p>
-          </div>
-
-          <div className="space-y-4 text-sm text-slate-600 leading-relaxed max-h-[60vh] overflow-y-auto pr-2 pb-2">
-            {COLUMNS.map((col, idx) => (
-              <div key={idx} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group hover:border-slate-300 transition-colors">
-                <div className="absolute top-0 left-0 w-1 h-full bg-slate-200 group-hover:bg-slate-800 transition-colors"></div>
-                <div className="flex items-center gap-3 mb-2 pl-2">
-                  <span className="text-[10px] font-semibold text-slate-400 font-mono">{(idx + 1).toString().padStart(2, '0')}</span>
-                  <h4 className="font-bold text-slate-800">{col.title}</h4>
-                </div>
-                <p className="text-xs text-slate-500 leading-relaxed pl-8">{col.text}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-6">
+        <Spinner size={44} />
+        <Eyebrow>Loading</Eyebrow>
       </div>
     )
-  }
 
-  if (currentView === 'NAME_INPUT') return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">
-      <div className="max-w-md w-full mx-auto relative mt-4">
-        <div className="mb-10 text-center">
-          <p className="text-[10px] font-semibold text-slate-400 tracking-widest uppercase border border-slate-200 rounded-full px-4 py-1.5 inline-block bg-white shadow-sm mb-6">
-            飲み会やチームの話題作りに
-          </p>
-          <h1 className="text-4xl md:text-5xl font-extrabold mb-6 tracking-tight text-slate-900">
-            価値観マッチング
-          </h1>
-
-          <div className="text-slate-600 text-sm leading-relaxed max-w-sm mx-auto font-medium">
-            <p className="mb-4">たった8つの質問に直感で答えるだけ。</p>
-            <p>
-              心理学の「類似性」と「相補性」に基づき、
-              価値観が重なる<strong className="text-slate-900 font-bold">「最高の理解者」</strong>と、
-              自分にない視点をもたらす<strong className="text-slate-900 font-bold">「最強の相棒」</strong>を
-              見つけ出します。
-            </p>
+  /* ================================================================
+     モーダル（どの画面からでも同じものが開く）
+     ================================================================ */
+  const modals = (
+    <>
+      <Modal
+        open={showMethodology}
+        onClose={() => setShowMethodology(false)}
+        eyebrow="Why we built this"
+        title="開発者の想い"
+      >
+        <div className="mb-7 flex items-center gap-3 rounded-[16px] border border-line bg-paper-sunken px-4 py-3.5">
+          <img
+            src="/icon-dt.png"
+            alt=""
+            className="h-10 w-10 rounded-full object-cover grayscale"
+          />
+          <div>
+            <p className="text-[13px] font-semibold text-ink">D.T.</p>
+            <p className="text-[11px] text-ink-muted">設問設計・アルゴリズム</p>
           </div>
         </div>
-
-        <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 mb-8">
-          {errorMsg && <div className="bg-slate-50 text-slate-800 p-4 rounded-xl mb-6 text-sm font-medium text-center border border-slate-200">{errorMsg}</div>}
-          <div className="mb-8 text-center">
-            <label className="block text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wider">Nickname</label>
-            <input type="text" placeholder="例：アキラ" value={userName} onChange={(e) => setUserName(e.target.value)}
-              className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none transition-all text-lg font-medium text-center" maxLength={10} />
-          </div>
-          <button onClick={handleNextToRoomSelect} className="w-full py-4 rounded-xl bg-slate-900 text-white font-medium text-lg hover:bg-slate-800 active:scale-[0.98] transition-all shadow-sm">
-            診断をはじめる
-          </button>
+        <div className="u-body space-y-5 text-[14px] text-ink-soft">
+          {DEVELOPER_THOUGHTS.map((text, i) => {
+            if (text.includes('最高のパートナー')) {
+              const parts = text.split('最高のパートナー')
+              return (
+                <p key={i}>
+                  {parts[0]}
+                  <strong className="font-semibold text-ink [box-shadow:inset_0_-0.5em_0_rgba(39,64,107,0.10)]">
+                    最高のパートナー
+                  </strong>
+                  {parts[1]}
+                </p>
+              )
+            }
+            return <p key={i}>{text}</p>
+          })}
         </div>
+      </Modal>
 
-        <DeveloperCredit />
-      </div>
-      {showMethodology && <MethodologyModal />}
-      {showAlgorithm && <AlgorithmModal />}
-    </div>
+      <Modal
+        open={showAlgorithm}
+        onClose={() => setShowAlgorithm(false)}
+        eyebrow="Logic & Science"
+        title="アルゴリズムと理論"
+      >
+        <div className="space-y-px overflow-hidden rounded-[16px] border border-line">
+          {COLUMNS.map((col, idx) => (
+            <article
+              key={idx}
+              className="bg-paper-raised px-5 py-5 [&+&]:border-t [&+&]:border-line"
+            >
+              <div className="mb-2 flex items-center gap-3">
+                <span className="u-num font-mono text-[11px] font-semibold tracking-[0.14em] text-ink-faint">
+                  {(idx + 1).toString().padStart(2, '0')}
+                </span>
+                <span className="h-px w-4 bg-line-strong" />
+                <h4 className="text-[14px] font-bold tracking-[0.01em] text-ink">
+                  {col.title}
+                </h4>
+              </div>
+              <p className="u-body text-[13px] text-ink-muted">{col.text}</p>
+            </article>
+          ))}
+        </div>
+      </Modal>
+    </>
   )
 
-  if (currentView === 'ROOM_SELECT') return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col justify-center py-8 px-4">
-      <div className="max-w-md w-full mx-auto">
-        <div className="mb-6">
-          <button onClick={() => setCurrentView('NAME_INPUT')} className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-slate-200 transition-colors uppercase tracking-wider">
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-            Back
-          </button>
-        </div>
-        <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 mb-6">
-          {errorMsg && <div className="bg-slate-50 text-slate-800 p-4 rounded-xl mb-6 text-sm font-medium text-center border border-slate-200">{errorMsg}</div>}
-          <div className="space-y-8">
-            <div>
-              <label className="block text-sm font-bold text-slate-800 mb-3 ml-1">新しく始める（幹事用）</label>
-              <button onClick={handleCreateRoom} className="w-full py-4 rounded-xl bg-slate-900 text-white font-medium text-lg hover:bg-slate-800 active:scale-[0.98] transition-all shadow-sm">新しくルームを作る</button>
+  /* ================================================================
+     1. 名前を入れる（トップ画面）
+     ================================================================ */
+  if (currentView === 'NAME_INPUT')
+    return (
+      <>
+        <Screen width="sm" className="flex flex-col">
+          <div className="flex flex-1 flex-col justify-center py-14">
+            <header className="mb-9 text-center u-stagger">
+              <div className="flex justify-center">
+                <Mark size={38} />
+              </div>
+              <Eyebrow className="mt-6">Value Matching</Eyebrow>
+              <h1 className="u-display mt-4 text-[clamp(2.15rem,9.5vw,2.75rem)] text-ink">
+                価値観
+                <br />
+                マッチング
+              </h1>
+              <p className="u-body mt-5 text-[14px] text-ink-soft">
+                8つの問いに、直感で答えるだけ。
+              </p>
+            </header>
+
+            <div className="animate-rise [animation-delay:0.2s]">
+              <Card>
+                {errorMsg && <Notice>{errorMsg}</Notice>}
+                <TextField
+                  label="ニックネーム"
+                  hint="10文字まで"
+                  value={userName}
+                  onChange={setUserName}
+                  onEnter={handleNextToRoomSelect}
+                  placeholder="例：アキラ"
+                  maxLength={10}
+                />
+                <div className="mt-5">
+                  <Button size="lg" full onClick={handleNextToRoomSelect}>
+                    はじめる
+                  </Button>
+                </div>
+                <p className="mt-4 text-center text-[11px] text-ink-faint">
+                  登録不要・匿名で参加できます
+                </p>
+              </Card>
             </div>
-            <div className="relative py-2">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
-              <div className="relative flex justify-center"><span className="px-4 bg-white text-[10px] font-semibold tracking-widest text-slate-400 uppercase">or</span></div>
+
+            {/* 色の意味をここで教える。以降の画面はこの2色だけで説明される */}
+            <section className="mt-8 animate-rise [animation-delay:0.3s]">
+              <Card padded={false}>
+                <div className="px-6 pb-5 pt-5 sm:px-7">
+                  <Eyebrow className="mb-4">2つの発見</Eyebrow>
+                  <div className="flex items-start gap-3.5">
+                    <span className="mt-[5px] h-3 w-3 flex-none rounded-full bg-ai" />
+                    <div>
+                      <p className="text-[15px] font-bold tracking-[0.01em] text-ink">
+                        最高の理解者
+                      </p>
+                      <p className="u-body mt-1 text-[12.5px] text-ink-muted">
+                        価値観が重なり、一緒にいて自然体でいられる人。
+                      </p>
+                      <p className="mt-1 text-[11px] text-ink-faint">類似性の法則</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mx-6 h-px bg-line sm:mx-7" />
+                <div className="px-6 pb-6 pt-5 sm:px-7">
+                  <div className="flex items-start gap-3.5">
+                    <span className="mt-[5px] h-3 w-3 flex-none rounded-full bg-shu" />
+                    <div>
+                      <p className="text-[15px] font-bold tracking-[0.01em] text-ink">
+                        最強の相棒
+                      </p>
+                      <p className="u-body mt-1 text-[12.5px] text-ink-muted">
+                        自分にない視点をくれ、弱点を補い合える人。
+                      </p>
+                      <p className="mt-1 text-[11px] text-ink-faint">相補性の法則</p>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </section>
+
+            {/* 所要時間と手順を先に示して、心理的な負担を下げる */}
+            <section className="mt-8 animate-rise [animation-delay:0.38s]">
+              <Eyebrow className="mb-3.5 text-center">3 Steps · 約2分</Eyebrow>
+              <ol className="grid grid-cols-3 gap-2 text-center">
+                {[
+                  ['01', '集まる', 'パスコードで合流'],
+                  ['02', '答える', '8つの二択に直感で'],
+                  ['03', '見る', '相性とマップが出る'],
+                ].map(([n, t, d]) => (
+                  <li
+                    key={n}
+                    className="rounded-[14px] border border-line/80 bg-paper-raised/60 px-2 py-4"
+                  >
+                    <span className="u-num font-mono text-[10px] font-semibold tracking-[0.14em] text-ink-faint">
+                      {n}
+                    </span>
+                    <p className="mt-1.5 text-[13px] font-bold text-ink">{t}</p>
+                    <p className="mt-1 text-[10.5px] leading-relaxed text-ink-muted">{d}</p>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          </div>
+
+          <Credit
+            onMethodology={() => setShowMethodology(true)}
+            onAlgorithm={() => setShowAlgorithm(true)}
+          />
+        </Screen>
+        {modals}
+      </>
+    )
+
+  /* ================================================================
+     2. ルームを作る / 参加する
+     ================================================================ */
+  if (currentView === 'ROOM_SELECT')
+    return (
+      <>
+        <Screen width="sm" className="flex flex-col">
+          <div className="flex flex-1 flex-col justify-center py-10">
+            <div className="mb-6">
+              <button
+                onClick={() => setCurrentView('NAME_INPUT')}
+                className="u-press -ml-2 inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-[12px] font-semibold text-ink-muted hover:bg-[rgba(20,18,16,0.05)] hover:text-ink"
+              >
+                <svg className="h-3 w-3" viewBox="0 0 12 12" fill="none" aria-hidden>
+                  <path
+                    d="M7.5 1.5L3 6l4.5 4.5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                もどる
+              </button>
             </div>
-            <div>
-              <label className="block text-sm font-bold text-slate-800 mb-3 ml-1">招待されたルームに参加</label>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <input type="text" placeholder="4桁のパスコード" value={joinCodeInput} onChange={(e) => setJoinCodeInput(e.target.value)}
-                  className="flex-1 p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xl tracking-widest focus:bg-white focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none transition-all font-mono text-slate-800" maxLength={4} />
-                <button onClick={handleJoinRoom} className="w-full sm:w-auto px-8 py-4 rounded-xl bg-slate-800 text-white font-medium hover:bg-slate-700 active:scale-[0.98] transition-all shadow-sm">参加する</button>
+
+            <header className="mb-7 animate-rise">
+              <Eyebrow className="mb-3">Room</Eyebrow>
+              <h1 className="u-display text-[30px] text-ink">
+                {userName ? `${userName}さん、` : ''}
+                <br className="sm:hidden" />
+                どちらで参加しますか
+              </h1>
+            </header>
+
+            <div className="animate-rise [animation-delay:0.1s]">
+              <Card>
+                {errorMsg && <Notice>{errorMsg}</Notice>}
+
+                <div>
+                  <div className="mb-3 flex items-baseline justify-between">
+                    <span className="text-[13px] font-bold tracking-[0.02em] text-ink">
+                      新しく始める
+                    </span>
+                    <span className="text-[11px] text-ink-faint">幹事の方</span>
+                  </div>
+                  <Button size="lg" full onClick={handleCreateRoom}>
+                    ルームをつくる
+                  </Button>
+                  <p className="mt-2.5 text-center text-[11px] text-ink-faint">
+                    4桁のパスコードが発行されます
+                  </p>
+                </div>
+
+                <Divider label="or" />
+
+                <div>
+                  <div className="mb-3 flex items-baseline justify-between">
+                    <span className="text-[13px] font-bold tracking-[0.02em] text-ink">
+                      招待されたルームに入る
+                    </span>
+                    <span className="text-[11px] text-ink-faint">参加者の方</span>
+                  </div>
+                  <PasscodeInput
+                    value={joinCodeInput}
+                    onChange={setJoinCodeInput}
+                    onComplete={handleJoinRoom}
+                  />
+                  <div className="mt-4">
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      full
+                      onClick={handleJoinRoom}
+                      disabled={joinCodeInput.length < 4}
+                    >
+                      参加する
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </div>
+
+          <Credit
+            onMethodology={() => setShowMethodology(true)}
+            onAlgorithm={() => setShowAlgorithm(true)}
+          />
+        </Screen>
+        {modals}
+      </>
+    )
+
+  /* ================================================================
+     3. ロビー（人を待つ）
+     ================================================================ */
+  if (currentView === 'LOBBY')
+    return (
+      <>
+        <div className="min-h-[100dvh]">
+          <AppBar
+            title="ルーム"
+            right={
+              <span className="u-num rounded-full border border-line bg-paper-raised px-3 py-1 text-[12px] font-semibold text-ink-muted">
+                {roomParticipants.length}人
+              </span>
+            }
+          />
+          <Screen width="sm" minH={false} className="flex flex-col">
+            <div className="py-10 u-stagger">
+              <div className="text-center">
+                <Eyebrow className="mb-4">Passcode</Eyebrow>
+                <PinTiles code={roomCode} />
+                <p className="mt-4 text-[12px] text-ink-muted">
+                  この番号を伝えるだけで、誰でも参加できます
+                </p>
+              </div>
+
+              <div className="mt-6 text-center">
+                <Button variant="outline" size="md" onClick={copyInviteText}>
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" aria-hidden>
+                    <rect x="5.25" y="5.25" width="8" height="8" rx="2" stroke="currentColor" strokeWidth="1.3" />
+                    <path
+                      d="M10.75 3.4V3.25a2 2 0 00-2-2h-4a2 2 0 00-2 2v4a2 2 0 002 2h.15"
+                      stroke="currentColor"
+                      strokeWidth="1.3"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  招待リンクをコピー
+                </Button>
+                <p
+                  className={cx(
+                    'mt-3 text-[11.5px] font-medium transition-opacity duration-300',
+                    copySuccess ? 'text-matcha opacity-100' : 'opacity-0'
+                  )}
+                >
+                  {copySuccess || '　'}
+                </p>
+              </div>
+
+              <Card padded={false} className="mt-4">
+                <div className="flex items-center justify-between border-b border-line px-6 py-4">
+                  <Eyebrow>Members</Eyebrow>
+                  <span className="u-num text-[12px] font-semibold text-ink-muted">
+                    {roomParticipants.length}
+                  </span>
+                </div>
+                <ul>
+                  {roomParticipants.map((p) => (
+                    <li
+                      key={p.id}
+                      className="flex items-center gap-3 px-6 py-3.5 [&+&]:border-t [&+&]:border-line/70"
+                    >
+                      <Avatar name={p.name} isMe={p.user_id === userId} size={30} />
+                      <NameTag
+                        name={p.name}
+                        className="min-w-0 flex-1 text-[14px] font-semibold text-ink"
+                      />
+                      {p.user_id === userId && (
+                        <span className="rounded-full bg-paper-sunken px-2 py-0.5 text-[10px] font-bold tracking-[0.1em] text-ink-muted">
+                          YOU
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                  {roomParticipants.length === 0 && (
+                    <li className="px-6 py-8 text-center text-[12px] text-ink-faint">
+                      まだ誰もいません
+                    </li>
+                  )}
+                </ul>
+                <div className="border-t border-line px-6 py-3">
+                  <button
+                    onClick={addDummyUsers}
+                    className="u-press w-full rounded-[10px] py-2 text-[11.5px] font-semibold text-ink-faint hover:bg-paper-sunken hover:text-ink-muted"
+                  >
+                    ＋ テスト用メンバーを追加
+                  </button>
+                </div>
+              </Card>
+
+              <div className="mt-7">
+                <Button
+                  size="lg"
+                  full
+                  onClick={startGame}
+                  disabled={roomParticipants.length < 2}
+                >
+                  {roomParticipants.length < 2 ? 'あと1人以上を待っています' : '全員そろった、はじめる'}
+                </Button>
+                <p className="mt-3 text-center text-[11px] text-ink-faint">
+                  参加者なら誰でも開始できます
+                </p>
               </div>
             </div>
-          </div>
-        </div>
-        <DeveloperCredit />
-      </div>
-      {showMethodology && <MethodologyModal />}
-      {showAlgorithm && <AlgorithmModal />}
-    </div>
-  )
 
-  if (currentView === 'LOBBY') return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col py-8 px-4 relative">
-      <div className="max-w-md w-full mx-auto flex flex-col items-center flex-grow justify-center">
-        <span className="text-xs font-semibold text-slate-400 mb-3 tracking-widest uppercase">Room PIN</span>
-        <div className="text-6xl sm:text-7xl font-extrabold tracking-widest text-slate-900 mb-8 font-mono">{roomCode}</div>
-        
-        <div className="mb-10 w-full text-center">
-          <button onClick={copyInviteText} className="inline-flex items-center gap-2 bg-white text-slate-700 font-medium py-3 px-6 rounded-full shadow-sm border border-slate-200 hover:border-slate-400 hover:text-slate-900 transition-colors text-sm active:scale-95">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-            招待テキストとURLをコピー
-          </button>
-          {copySuccess && <p className="text-xs text-slate-500 font-medium mt-3 animate-pulse">{copySuccess}</p>}
+            <ExitLink onClick={completelyResetGame} />
+          </Screen>
         </div>
-        
-        <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 w-full mb-8">
-          <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-4">
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Members</h3>
-            <span className="bg-slate-100 text-slate-700 text-xs font-semibold px-3 py-1 rounded-full">{roomParticipants.length}</span>
-          </div>
-          <ul className="space-y-3 mb-2">
-            {roomParticipants.map((p) => (
-              <li key={p.id} className="flex items-center text-slate-700 font-medium p-3 bg-slate-50 rounded-xl border border-slate-100">
-                {p.user_id === userId ? (
-                  <div className="w-5 h-5 rounded-full border border-slate-300 overflow-hidden bg-slate-200 mr-3 grayscale relative">
-                     <img src="/icon-dt.png" alt="Me" className="w-full h-full object-cover" />
-                  </div>
-                ) : (
-                  <span className="w-2 h-2 rounded-full bg-slate-400 mr-4 ml-1.5" />
-                )}
-                {p.name}
-                {p.user_id === userId && <span className="ml-auto text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-1 rounded-md uppercase tracking-wider">You</span>}
-              </li>
-            ))}
-          </ul>
-          <button onClick={addDummyUsers} className="w-full py-4 mt-6 rounded-xl border border-dashed border-slate-300 text-slate-500 text-xs font-medium hover:bg-slate-50 hover:text-slate-800 hover:border-slate-400 transition-colors tracking-wide">+ テスト用メンバーを追加</button>
-        </div>
-        
-        <button onClick={startGame} disabled={roomParticipants.length < 2}
-          className={`w-full py-5 rounded-xl font-medium text-lg transition-colors duration-200 shadow-sm ${roomParticipants.length < 2 ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' : 'bg-slate-900 text-white hover:bg-slate-800 active:scale-[0.98]'}`}>
-          {roomParticipants.length < 2 ? '2人以上で開始できます' : '全員揃ったらスタート'}
-        </button>
-        <p className="text-[10px] font-semibold text-slate-400 mt-4 tracking-widest">※参加者なら誰でもスタート可能です</p>
-      </div>
-      <ResetButton />
-    </div>
-  )
+        {modals}
+      </>
+    )
 
+  /* ================================================================
+     4. 設問に答える
+     ================================================================ */
   if (currentView === 'PLAYING') {
     const q = QUESTIONS[currentQIdx]
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col py-8 px-4 relative">
-        <div className="max-w-2xl w-full mx-auto flex-grow flex flex-col justify-center">
-          <div className="flex flex-col md:flex-row justify-between md:items-center mb-8 gap-4 px-2">
-            <div className="flex items-center gap-3">
-              {currentQIdx > 0 && (
-                <button onClick={handleBack} className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm transition-colors">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
-                  前の問いへ
-                </button>
-              )}
-              <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">{currentQIdx + 1} / {QUESTIONS.length}</span>
-              <span className="inline-block bg-white text-slate-700 border border-slate-200 text-xs font-semibold px-3 py-1 rounded-full shadow-sm">{q.dim}</span>
+      <div className="flex min-h-[100dvh] flex-col">
+        {/* 進捗は8本の目盛りで示す。あと何問かが一目でわかる */}
+        <div className="u-blur-bar sticky top-0 z-30 border-b border-line/80">
+          <div className="mx-auto flex h-14 max-w-2xl items-center gap-4 px-5 sm:px-6">
+            <button
+              onClick={handleBack}
+              disabled={currentQIdx === 0}
+              aria-label="前の問いへ"
+              className="u-press -ml-2 flex h-9 w-9 flex-none items-center justify-center rounded-full text-ink-muted hover:bg-[rgba(20,18,16,0.05)] hover:text-ink disabled:pointer-events-none disabled:opacity-25"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" aria-hidden>
+                <path
+                  d="M10 3l-5 5 5 5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+
+            <div className="flex flex-1 items-center gap-1">
+              {QUESTIONS.map((_, i) => (
+                <span
+                  key={i}
+                  className={cx(
+                    'h-[3px] flex-1 rounded-full transition-colors duration-500 ease-apple',
+                    i < currentQIdx ? 'bg-ink' : i === currentQIdx ? 'bg-ai' : 'bg-line-strong/60'
+                  )}
+                />
+              ))}
             </div>
-            <div className="w-full md:w-1/3 bg-slate-200 rounded-full h-1.5 overflow-hidden">
-              <div className="bg-slate-900 h-full transition-all duration-500 ease-out" style={{ width: `${(currentQIdx / QUESTIONS.length) * 100}%` }} />
-            </div>
-          </div>
-          <div className="bg-white rounded-2xl p-8 sm:p-10 shadow-sm border border-slate-200 mb-8 min-h-[200px] flex items-center justify-center relative overflow-hidden">
-            <h2 className="text-2xl md:text-3xl font-extrabold text-slate-800 leading-relaxed text-center tracking-tight">{q.text}</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button onClick={() => handleAnswer(1)} className="p-6 rounded-xl bg-white border border-slate-200 text-lg font-medium text-slate-700 hover:border-slate-900 hover:bg-slate-50 hover:text-slate-900 active:scale-95 transition-all shadow-sm">{q.a}</button>
-            <button onClick={() => handleAnswer(-1)} className="p-6 rounded-xl bg-white border border-slate-200 text-lg font-medium text-slate-700 hover:border-slate-900 hover:bg-slate-50 hover:text-slate-900 active:scale-95 transition-all shadow-sm">{q.b}</button>
+
+            <span className="u-num flex-none font-mono text-[12px] font-semibold tracking-[0.06em] text-ink-muted">
+              {String(currentQIdx + 1).padStart(2, '0')}
+              <span className="text-ink-faint">/{QUESTIONS.length}</span>
+            </span>
           </div>
         </div>
-        <ResetButton />
+
+        <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center px-5 py-10 sm:px-6">
+          <div key={currentQIdx} className="animate-rise">
+            <div className="mb-8 text-center">
+              <span className="inline-block rounded-full border border-line bg-paper-raised px-3.5 py-1.5 text-[11px] font-semibold tracking-[0.04em] text-ink-muted">
+                {q.dim}
+              </span>
+              <h1 className="u-display mx-auto mt-6 max-w-xl text-[clamp(1.5rem,5.2vw,2.05rem)] leading-[1.5] text-ink">
+                {q.text}
+              </h1>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {[
+                { key: 'A', text: q.a, value: 1, tone: 'ai' as const },
+                { key: 'B', text: q.b, value: -1, tone: 'shu' as const },
+              ].map((opt) => (
+                <button
+                  key={opt.key}
+                  onClick={() => handleAnswer(opt.value)}
+                  className={cx(
+                    'u-press group relative flex min-h-[132px] flex-col items-start gap-3 rounded-[18px] border bg-paper-raised p-5 text-left sm:p-6',
+                    'border-line shadow-[0_1px_2px_rgba(20,18,16,0.04)]',
+                    opt.tone === 'ai'
+                      ? 'hover:border-ai/50 hover:shadow-[0_2px_4px_rgba(27,46,78,0.06),0_18px_36px_-24px_rgba(27,46,78,0.55)]'
+                      : 'hover:border-shu/50 hover:shadow-[0_2px_4px_rgba(130,62,39,0.06),0_18px_36px_-24px_rgba(130,62,39,0.55)]'
+                  )}
+                >
+                  <span
+                    className={cx(
+                      'flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-bold transition-colors duration-300',
+                      opt.tone === 'ai'
+                        ? 'bg-ai-soft text-ai group-hover:bg-ai group-hover:text-white'
+                        : 'bg-shu-soft text-shu group-hover:bg-shu group-hover:text-white'
+                    )}
+                  >
+                    {opt.key}
+                  </span>
+                  <span className="u-body text-[15px] font-semibold text-ink sm:text-[16px]">
+                    {opt.text}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <p className="mt-6 hidden text-center text-[11px] text-ink-faint md:block">
+              キーボードの <kbd className="font-mono">A</kbd> /{' '}
+              <kbd className="font-mono">B</kbd> でも回答できます
+            </p>
+          </div>
+        </main>
+
+        <ExitLink onClick={completelyResetGame} />
       </div>
     )
   }
 
+  /* ================================================================
+     5. 全員を待つ
+     ================================================================ */
   if (currentView === 'WAITING') {
     const col = COLUMNS[columnIdx]
+    const done = roomParticipants.filter((p) => p.is_finished).length
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col py-8 px-4 relative">
-        <div className="max-w-md w-full mx-auto text-center flex-grow flex flex-col justify-center">
-          <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm border border-slate-200">
-            <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-          </div>
-          <h2 className="text-2xl font-extrabold text-slate-800 mb-2 tracking-tight">回答完了</h2>
-          <p className="text-slate-500 font-medium mb-8 text-sm">全員が答え終わるのを待っています...</p>
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 text-left mb-6">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Status</h3>
-              <span className="text-slate-900 font-extrabold text-lg font-mono">{roomParticipants.filter((p) => p.is_finished).length} / {roomParticipants.length}</span>
+      <>
+        <div className="min-h-[100dvh]">
+          <AppBar title="回答完了" />
+          <Screen width="sm" minH={false} className="flex flex-col">
+            <div className="py-12 u-stagger">
+              <div className="text-center">
+                <div className="flex justify-center">
+                  <ProgressRing value={done} total={roomParticipants.length} size={84} />
+                </div>
+                <h1 className="u-display mt-6 text-[26px] text-ink">回答ありがとう</h1>
+                <p className="u-body mt-2.5 text-[13px] text-ink-muted">
+                  {allFinished
+                    ? '全員そろいました。解析をはじめられます。'
+                    : 'ほかの人が答え終わるのを待っています。'}
+                </p>
+              </div>
+
+              <Card padded={false} className="mt-8">
+                <div className="flex items-center justify-between border-b border-line px-6 py-4">
+                  <Eyebrow>Status</Eyebrow>
+                  <span className="u-num text-[12px] font-semibold text-ink-muted">
+                    {done} / {roomParticipants.length}
+                  </span>
+                </div>
+                <ul>
+                  {roomParticipants.map((p) => (
+                    <li
+                      key={p.id}
+                      className="flex items-center gap-3 px-6 py-3.5 [&+&]:border-t [&+&]:border-line/70"
+                    >
+                      <Avatar
+                        name={p.name}
+                        isMe={p.user_id === userId}
+                        size={30}
+                        className={p.is_finished ? '' : 'opacity-45'}
+                      />
+                      <NameTag
+                        name={p.name}
+                        className={cx(
+                          'min-w-0 flex-1 text-[14px] font-semibold',
+                          p.is_finished ? 'text-ink' : 'text-ink-faint'
+                        )}
+                      />
+                      {p.is_finished ? (
+                        <span className="flex items-center gap-1.5 text-[11px] font-semibold text-matcha">
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 14 14" fill="none" aria-hidden>
+                            <path
+                              d="M3 7.4l2.6 2.6L11 4.6"
+                              stroke="currentColor"
+                              strokeWidth="1.6"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                          完了
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 text-[11px] text-ink-faint">
+                          <span className="h-1.5 w-1.5 animate-breathe rounded-full bg-ink-faint" />
+                          回答中
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+
+              {/* 待ち時間は「読みもの」に変える */}
+              <section className="mt-5 rounded-[20px] border border-line bg-paper-sunken p-6">
+                <div className="mb-3 flex items-center justify-between">
+                  <Eyebrow>Column</Eyebrow>
+                  <span className="flex gap-1.5">
+                    {COLUMNS.map((_, i) => (
+                      <span
+                        key={i}
+                        className={cx(
+                          'h-1 rounded-full transition-all duration-500 ease-apple',
+                          i === columnIdx ? 'w-4 bg-ink-muted' : 'w-1 bg-line-strong'
+                        )}
+                      />
+                    ))}
+                  </span>
+                </div>
+                <div key={columnIdx} className="animate-fade min-h-[132px]">
+                  <h3 className="u-title text-[16px] text-ink">{col.title}</h3>
+                  <p className="u-body mt-2 text-[12.5px] text-ink-muted">{col.text}</p>
+                </div>
+              </section>
+
+              {allFinished && (
+                <div className="mt-8 animate-rise">
+                  <Button size="lg" full onClick={triggerCalculation}>
+                    結果を解析する
+                  </Button>
+                </div>
+              )}
             </div>
-            <ul className="space-y-3">
-              {roomParticipants.map((p) => (
-                <li key={p.id} className="flex justify-between items-center text-sm font-medium p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <span className={p.is_finished ? 'text-slate-800' : 'text-slate-400'}>{p.name}</span>
-                  {p.is_finished ? <span className="px-2.5 py-1 bg-slate-200 text-slate-700 rounded-md text-[10px] font-bold uppercase tracking-wider">Done</span>
-                    : <span className="text-slate-400 text-xs flex items-center gap-2"><span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-pulse" />考え中</span>}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="bg-slate-50 rounded-2xl p-6 text-left min-h-[140px] flex flex-col justify-center border border-slate-200">
-            <span className="text-[10px] font-bold text-slate-400 mb-2 block uppercase tracking-widest">Column</span>
-            <h4 className="font-bold text-slate-800 mb-2">{col.title}</h4>
-            <p className="text-xs text-slate-500 leading-relaxed">{col.text}</p>
-          </div>
-          
-          {allFinished && (
-            <button onClick={triggerCalculation} className="mt-10 w-full py-4 rounded-xl bg-slate-900 text-white font-medium text-lg hover:bg-slate-800 active:scale-[0.98] transition-all shadow-sm">結果を解析する</button>
-          )}
+
+            <ExitLink onClick={completelyResetGame} />
+          </Screen>
         </div>
-        <ResetButton />
-      </div>
+        {modals}
+      </>
     )
   }
 
-  if (currentView === 'CALCULATING') return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center">
-      <div className="relative w-16 h-16 mb-8 flex justify-center items-center">
-        <div className="absolute inset-0 border-2 border-slate-200 rounded-full" />
-        <div className="absolute inset-0 border-2 border-slate-800 rounded-full border-t-transparent animate-spin" />
-      </div>
-      <h2 className="text-xl font-extrabold text-slate-800 mb-2 tracking-tight">解析中...</h2>
-      <p className="text-xs text-slate-500 font-medium">多次元ベクトル空間での距離を測定しています</p>
-    </div>
-  )
-
-  if (currentView === 'RESULT') {
-    const results = calculateEnhancedResults();
-    if (!results) return (
-      <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center">
-        <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 text-center max-w-md w-full mx-4">
-          <p className="mb-6 font-medium text-slate-600 text-sm">計算に必要なデータが足りません。</p>
-          <button onClick={completelyResetGame} className="w-full py-3 bg-slate-100 rounded-xl font-medium text-slate-700 hover:bg-slate-200 transition-colors">トップに戻る</button>
+  /* ================================================================
+     6. 解析中
+     ================================================================ */
+  if (currentView === 'CALCULATING')
+    return (
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center px-6 text-center">
+        <Spinner size={52} />
+        <h1 className="u-display mt-8 text-[22px] text-ink">解析しています</h1>
+        <p className="mt-2.5 text-[12px] text-ink-muted">
+          8次元のベクトル空間で、全員の距離を測っています
+        </p>
+        <div className="mt-8 h-[2px] w-40 overflow-hidden rounded-full bg-line">
+          <div className="h-full w-1/2 animate-sweep rounded-full bg-ink" />
         </div>
       </div>
     )
 
-    const mapData = generate2DMapData(roomParticipants);
+  /* ================================================================
+     7. 結果
+     ================================================================ */
+  if (currentView === 'RESULT') {
+    const results = calculateEnhancedResults()
+
+    if (!results)
+      return (
+        <div className="flex min-h-[100dvh] items-center justify-center px-6">
+          <Card className="w-full max-w-sm text-center">
+            <p className="u-body text-[13px] text-ink-muted">
+              計算に必要なデータが足りませんでした。
+            </p>
+            <div className="mt-6">
+              <Button variant="outline" full onClick={completelyResetGame}>
+                トップに戻る
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )
+
+    const mapData = generate2DMapData(roomParticipants)
+    const points: MapPoint[] = mapData.map((p) => ({
+      id: p.id,
+      name: p.name,
+      nx: p.nx,
+      ny: p.ny,
+      title: p.title,
+      isMe: p.isMe,
+    }))
+    const links: MapLink[] = results.allPairs
+      .filter((p) => p.percent >= 60)
+      .map((p) => ({ a: p.p1.id, b: p.p2.id, percent: p.percent }))
+
+    const myAnswers = (me?.answers as number[]) ?? []
 
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-800 font-sans py-12 px-4 relative">
-        <div className="fixed bottom-6 right-6 z-40">
-          <button 
-            onClick={completelyResetGame} 
-            className="flex items-center justify-center gap-2 bg-slate-900 text-white px-5 py-3 rounded-full font-medium shadow-sm hover:bg-slate-800 active:scale-95 transition-all border border-slate-700 text-sm"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
-            最初から
-          </button>
-        </div>
+      <>
+        <div className="min-h-[100dvh]">
+          <AppBar
+            title="診断結果"
+            right={
+              <button
+                onClick={completelyResetGame}
+                className="u-press rounded-full border border-line bg-paper-raised px-3.5 py-1.5 text-[12px] font-semibold text-ink-muted hover:border-line-strong hover:text-ink"
+              >
+                最初から
+              </button>
+            }
+          />
 
-        {showMethodology && <MethodologyModal />}
-        {showAlgorithm && <AlgorithmModal />}
-        
-        <div className="max-w-3xl w-full mx-auto pb-12">
-          <div className="text-center mb-16">
-            <span className="text-[10px] font-bold text-slate-400 tracking-[0.3em] uppercase mb-4 block">Analysis Result</span>
-            <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight">診断結果</h1>
-          </div>
-          
-          <div className="space-y-12">
+          <Screen width="lg" minH={false}>
+            {/* --- 表紙 --- */}
+            <header className="py-16 text-center u-stagger">
+              <Eyebrow>Analysis Report</Eyebrow>
+              <h1 className="u-display mt-4 text-[clamp(2.25rem,9vw,3rem)] text-ink">
+                診断結果
+              </h1>
+              <p className="mt-4 text-[12.5px] text-ink-muted">
+                {roomParticipants.filter((p) => p.is_finished).length}名 ・ 全
+                {QUESTIONS.length}問 ・ ルーム {roomCode}
+              </p>
+            </header>
 
-            {/* 1. ベストペア */}
-            <section>
-              <div className="mb-6 text-center">
-                <h3 className="font-extrabold text-slate-900 text-2xl tracking-tight">最も価値観が近い2人</h3>
-                <p className="text-xs text-slate-500 mt-2 font-medium">心理学の「類似性の法則」に基づき、考え方のベクトルが似ているため、一緒にいて自然体でいられる関係です。</p>
-              </div>
-              <div className="bg-white rounded-2xl p-8 md:p-12 shadow-sm border border-slate-200 text-center relative">
-                <div className="flex items-center justify-center gap-4 mb-8">
-                  <span className="text-3xl md:text-4xl font-extrabold text-slate-900">{results.best.p1.name.replace('(Bot)', '')}</span>
-                  <span className="text-slate-300 text-2xl font-light">×</span>
-                  <span className="text-3xl md:text-4xl font-extrabold text-slate-900">{results.best.p2.name.replace('(Bot)', '')}</span>
-                </div>
-                <div className="inline-flex items-baseline bg-slate-50 px-8 py-3 rounded-xl border border-slate-200">
-                  <span className="text-xs font-bold text-slate-400 mr-4 uppercase tracking-widest">Match</span>
-                  <span className="text-5xl font-extrabold text-slate-900 tracking-tighter">{results.best.percent}</span>
-                  <span className="text-xl font-bold text-slate-400 ml-1">%</span>
-                </div>
-              </div>
-            </section>
-            
-            {/* 2. ワーストペア & 独自路線 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-16 pb-4">
+              {/* --- 01 最高の理解者 --- */}
               <section>
-                <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 h-full flex flex-col justify-between">
-                  <div>
-                    <h3 className="font-extrabold text-slate-900 text-lg mb-2 tracking-tight">最も価値観が遠い2人</h3>
-                    <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">心理学の「相補性の法則」に基づき、考え方が違うため、お互いの弱点をカバーし合える最強のチームになれる関係です。</p>
-                  </div>
-                  <div className="bg-slate-50 rounded-xl p-5 border border-slate-200 text-center">
-                    <div className="flex items-center justify-center gap-3 mb-3">
-                      <span className="text-xl font-extrabold text-slate-900">{results.worst.p1.name.replace('(Bot)', '')}</span>
-                      <span className="text-slate-300 text-lg font-light">×</span>
-                      <span className="text-xl font-extrabold text-slate-900">{results.worst.p2.name.replace('(Bot)', '')}</span>
+                <SectionHead
+                  index="01"
+                  eyebrow="類似性の法則"
+                  title="最高の理解者"
+                  lead="考え方のベクトルが最も近い2人です。言葉にしなくても伝わる、一緒にいて自然体でいられる関係。"
+                  align="center"
+                />
+                <Card className="text-center">
+                  <div className="flex items-center justify-center gap-4 sm:gap-6">
+                    <div className="flex flex-col items-center gap-2.5">
+                      <Avatar name={results.best.p1.name} size={52} />
+                      <span className="u-title text-[17px] text-ink sm:text-[19px]">
+                        {clean(results.best.p1.name)}
+                      </span>
                     </div>
-                    <div><span className="text-[10px] font-bold text-slate-400 mr-2 uppercase tracking-wider">Similarity</span><span className="font-extrabold text-2xl text-slate-900">{results.worst.percent}%</span></div>
+                    <span className="pb-7 text-[18px] font-light text-line-strong">×</span>
+                    <div className="flex flex-col items-center gap-2.5">
+                      <Avatar name={results.best.p2.name} size={52} />
+                      <span className="u-title text-[17px] text-ink sm:text-[19px]">
+                        {clean(results.best.p2.name)}
+                      </span>
+                    </div>
                   </div>
-                </div>
+
+                  <div className="my-7 flex justify-center">
+                    <ScoreDial percent={results.best.percent} caption="Match" tone="ai" />
+                  </div>
+
+                  {results.best.reasons.length > 0 && (
+                    <>
+                      <div className="u-rule mb-5" />
+                      <Eyebrow className="mb-3">意見が一致した価値観</Eyebrow>
+                      <DimChips dims={results.best.reasons} tone="ai" />
+                    </>
+                  )}
+                </Card>
               </section>
+
+              {/* --- 02 / 03 --- */}
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <section className="flex flex-col">
+                  <SectionHead
+                    index="02"
+                    eyebrow="相補性の法則"
+                    title="最強の相棒"
+                    lead="価値観が最も遠い2人。だからこそ、互いの弱点を補い合える組み合わせです。"
+                  />
+                  <Card className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={results.worst.p1.name} size={38} />
+                      <Avatar name={results.worst.p2.name} size={38} className="-ml-4" />
+                      <span className="u-title ml-1 min-w-0 flex-1 truncate text-[16px] text-ink">
+                        {clean(results.worst.p1.name)} × {clean(results.worst.p2.name)}
+                      </span>
+                    </div>
+                    <div className="mt-5 flex items-baseline gap-2 rounded-[14px] bg-shu-soft px-4 py-3">
+                      <Eyebrow className="!text-shu/70">一致度</Eyebrow>
+                      <span className="u-num ml-auto text-[26px] font-semibold tracking-[-0.03em] text-shu">
+                        {results.worst.percent}
+                        <span className="text-[13px]">%</span>
+                      </span>
+                    </div>
+                    {results.worst.reasons.length > 0 && (
+                      <div className="mt-5">
+                        <Eyebrow className="mb-2.5">意見が割れた価値観</Eyebrow>
+                        <div className="flex justify-start">
+                          <DimChips dims={results.worst.reasons} tone="shu" />
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+                </section>
+
+                <section className="flex flex-col">
+                  <SectionHead
+                    index="03"
+                    eyebrow="Uniqueness"
+                    title="唯一無二の視点"
+                    lead="グループの平均から最も離れた感性の持ち主。集団のマンネリを防ぐ、貴重な存在です。"
+                  />
+                  <Card className="flex flex-1 flex-col justify-center">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={results.minority.name} size={44} />
+                      <span className="u-title text-[18px] text-ink">
+                        {clean(results.minority.name)}
+                      </span>
+                    </div>
+                    <div className="mt-6">
+                      <div className="mb-2 flex items-baseline justify-between">
+                        <Eyebrow>独自性スコア</Eyebrow>
+                        <span className="u-num text-[26px] font-semibold tracking-[-0.03em] text-ink">
+                          {results.minority.uniquenessScore}
+                          <span className="text-[13px] text-ink-faint">%</span>
+                        </span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-paper-deep">
+                        <div
+                          className="h-full rounded-full bg-ink transition-[width] duration-[1200ms] ease-quint"
+                          style={{ width: `${results.minority.uniquenessScore}%` }}
+                        />
+                      </div>
+                    </div>
+                  </Card>
+                </section>
+              </div>
+
+              {/* --- 04 全員のベストパートナー --- */}
               <section>
-                <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 h-full flex flex-col justify-between">
-                  <div>
-                    <h3 className="font-extrabold text-slate-900 text-lg mb-2 tracking-tight">最も独自路線を行く人</h3>
-                    <p className="text-xs text-slate-500 font-medium mb-6 leading-relaxed">グループの平均値から最も外れた独自の感性を持つ、集団のマンネリ化を防ぐ貴重な存在です。</p>
-                  </div>
-                  <div className="bg-slate-50 rounded-xl p-5 border border-slate-200 text-center">
-                    <div className="text-2xl font-extrabold text-slate-900 mb-2">{results.minority.name.replace('(Bot)', '')}</div>
-                    <div><span className="text-[10px] font-bold text-slate-400 mr-2 uppercase tracking-wider">Uniqueness</span><span className="font-extrabold text-2xl text-slate-900">{results.minority.uniquenessScore}%</span></div>
-                  </div>
-                </div>
+                <SectionHead
+                  index="04"
+                  eyebrow="Everyone"
+                  title="全員のベストパートナー"
+                  lead="一人ひとりにとって、最も価値観が近かった相手です。"
+                />
+                <Card padded={false}>
+                  <ul>
+                    {results.personalBests.map((pb, i) => {
+                      const title = mapData.find((m) => m.id === pb.me.id)?.title ?? ''
+                      return (
+                        <li
+                          key={i}
+                          className="flex items-center gap-3 px-5 py-4 sm:px-6 [&+&]:border-t [&+&]:border-line/70"
+                        >
+                          <Avatar
+                            name={pb.me.name}
+                            isMe={pb.me.user_id === userId}
+                            size={36}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[14px] font-bold text-ink">
+                              {clean(pb.me.name)}
+                            </p>
+                            {title && (
+                              <p className="mt-0.5 truncate text-[10.5px] font-semibold tracking-[0.06em] text-ink-faint">
+                                {title}
+                              </p>
+                            )}
+                          </div>
+                          <svg
+                            className="h-3 w-3 flex-none text-line-strong"
+                            viewBox="0 0 12 12"
+                            fill="none"
+                            aria-hidden
+                          >
+                            <path
+                              d="M2 6h8M7 3l3 3-3 3"
+                              stroke="currentColor"
+                              strokeWidth="1.4"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                          <div className="min-w-0 max-w-[34%] text-right">
+                            <p className="truncate text-[14px] font-bold text-ink">
+                              {clean(pb.partner.name)}
+                            </p>
+                          </div>
+                          <span className="u-num w-[52px] flex-none rounded-[8px] bg-ai-soft py-1 text-center text-[12px] font-bold text-ai">
+                            {pb.percent}%
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </Card>
+              </section>
+
+              {/* --- 05 価値観マップ --- */}
+              <section>
+                <SectionHead
+                  index="05"
+                  eyebrow="2D Map"
+                  title="価値観マップ"
+                  lead="8次元の回答を2軸に圧縮した散布図です。線は、シンクロ率60%以上でつながっている関係を表します。"
+                  align="center"
+                />
+                <Card>
+                  <ValueMap points={points} links={links} />
+                </Card>
+              </section>
+
+              {/* --- 06 隠れた掟 --- */}
+              <section>
+                <SectionHead
+                  index="06"
+                  eyebrow="Group Norms"
+                  title="このグループの「隠れた掟」"
+                  lead="全員の回答の偏りから、無意識に共有している暗黙のルールと、その裏返しの弱点を取り出します。"
+                  align="center"
+                />
+                <Card>
+                  {results.groupRules.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
+                      <div>
+                        <div className="mb-4 flex items-center gap-2.5">
+                          <span className="h-2 w-2 rounded-full bg-ai" />
+                          <h4 className="text-[13px] font-bold tracking-[0.02em] text-ink">
+                            支配的なルール
+                          </h4>
+                        </div>
+                        <ul className="space-y-3">
+                          {results.groupRules.map((rule, i) => (
+                            <li
+                              key={i}
+                              className="u-body flex gap-2.5 text-[13px] font-medium text-ink-soft"
+                            >
+                              <span className="mt-[9px] h-px w-3 flex-none bg-ai-line" />
+                              <span>{rule}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="border-t border-line pt-8 sm:border-l sm:border-t-0 sm:pl-8 sm:pt-0">
+                        <div className="mb-4 flex items-center gap-2.5">
+                          <span className="h-2 w-2 rounded-full bg-shu" />
+                          <h4 className="text-[13px] font-bold tracking-[0.02em] text-ink">
+                            裏に潜む弱点
+                          </h4>
+                        </div>
+                        <ul className="space-y-3">
+                          {results.groupWeaknesses.map((weak, i) => (
+                            <li
+                              key={i}
+                              className="u-body flex gap-2.5 text-[13px] font-medium text-ink-muted"
+                            >
+                              <span className="mt-[9px] h-px w-3 flex-none bg-shu-line" />
+                              <span>{weak}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-6 text-center">
+                      <h4 className="u-title text-[19px] text-ink">究極のバランス型集団</h4>
+                      <p className="u-body mx-auto mt-3 max-w-sm text-[13px] text-ink-muted">
+                        突出して偏ったルールがなく、多様な価値観が共存しています。
+                        意見が割れても、どこかに着地できるグループです。
+                      </p>
+                    </div>
+                  )}
+                </Card>
+              </section>
+
+              {/* --- 07 回答分布 --- */}
+              <section>
+                <SectionHead
+                  index="07"
+                  eyebrow="Distribution"
+                  title="みんなの回答"
+                  lead="どちらの選択肢に、どれだけ票が集まったか。あなたの回答には印がついています。"
+                  align="center"
+                />
+                <Card padded={false}>
+                  {QUESTIONS.map((q, idx) => {
+                    const stats = results.questionStats[idx]
+                    const mine = myAnswers[idx]
+                    return (
+                      <article
+                        key={idx}
+                        className="px-5 py-7 sm:px-8 [&+&]:border-t [&+&]:border-line/70"
+                      >
+                        <div className="mb-4 flex items-baseline gap-3">
+                          <span className="u-num font-mono text-[11px] font-semibold text-ink-faint">
+                            {String(idx + 1).padStart(2, '0')}
+                          </span>
+                          <h4 className="u-body text-[14px] font-bold text-ink">{q.text}</h4>
+                        </div>
+
+                        {/* 1本のバーで A と B の比を見せる */}
+                        <div className="mb-4 flex h-2.5 overflow-hidden rounded-full bg-paper-deep">
+                          <div
+                            className="h-full bg-ai transition-[width] duration-[1200ms] ease-quint"
+                            style={{ width: `${stats.aPercent}%` }}
+                          />
+                          <div
+                            className="h-full bg-shu transition-[width] duration-[1200ms] ease-quint"
+                            style={{ width: `${stats.bPercent}%` }}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          {[
+                            { key: 'A', text: q.a, pct: stats.aPercent, tone: 'ai' as const, on: mine === 1 },
+                            { key: 'B', text: q.b, pct: stats.bPercent, tone: 'shu' as const, on: mine === -1 },
+                          ].map((o) => (
+                            <div
+                              key={o.key}
+                              className={cx(
+                                'flex items-start gap-2.5 rounded-[12px] p-2.5 transition-colors',
+                                o.on
+                                  ? o.tone === 'ai'
+                                    ? 'bg-ai-soft'
+                                    : 'bg-shu-soft'
+                                  : 'bg-transparent'
+                              )}
+                            >
+                              <span
+                                className={cx(
+                                  'mt-[1px] flex h-5 w-5 flex-none items-center justify-center rounded-full text-[10px] font-bold',
+                                  o.tone === 'ai' ? 'bg-ai text-white' : 'bg-shu text-white'
+                                )}
+                              >
+                                {o.key}
+                              </span>
+                              <p className="u-body min-w-0 flex-1 text-[12px] text-ink-soft">
+                                {o.text}
+                                {o.on && (
+                                  <span
+                                    className={cx(
+                                      'ml-1.5 whitespace-nowrap rounded-full px-1.5 py-[1px] text-[9px] font-bold tracking-[0.06em]',
+                                      o.tone === 'ai' ? 'bg-ai text-white' : 'bg-shu text-white'
+                                    )}
+                                  >
+                                    あなた
+                                  </span>
+                                )}
+                              </p>
+                              <span
+                                className={cx(
+                                  'u-num flex-none text-[13px] font-bold',
+                                  o.tone === 'ai' ? 'text-ai' : 'text-shu'
+                                )}
+                              >
+                                {o.pct}%
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </article>
+                    )
+                  })}
+                </Card>
               </section>
             </div>
 
-            {/* 3. ベストマッチ一覧 */}
-            <section>
-              <h3 className="text-base font-extrabold text-slate-900 border-b border-slate-200 pb-2 mb-6 mt-8 tracking-tight">参加者ごとのベストマッチ</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {results.personalBests.map((pb, i) => {
-                   const personData = mapData.find(m => m.id === pb.me.id);
-                   const title = personData ? personData.title : "";
-                   
-                   return (
-                    <div key={i} className="flex flex-col p-4 bg-white rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-slate-800"></div>
-                      <span className="text-[10px] font-bold text-slate-500 mb-2 ml-2 tracking-wide">{title}</span>
-                      <div className="flex justify-between items-center ml-2">
-                        <div className="font-medium text-slate-600 text-sm">{pb.me.name.replace('(Bot)', '')} <span className="text-slate-300 font-normal text-xs mx-1">の相手</span> <span className="text-slate-900 font-bold text-base border-b border-slate-300">{pb.partner.name.replace('(Bot)', '')}</span></div>
-                        <div className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-md">{pb.percent}%</div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
+            <div className="mx-auto mt-16 max-w-sm">
+              <Button size="lg" full onClick={completelyResetGame}>
+                最初からもう一度あそぶ
+              </Button>
+            </div>
 
-            {/* 4. 相関ネットワーク図（2Dマップ） */}
-            <section className="pt-12 border-t border-slate-200">
-              <div className="mb-6 text-center">
-                <h3 className="font-extrabold text-slate-900 text-2xl tracking-tight">相関ネットワーク図</h3>
-                <p className="text-xs text-slate-500 mt-2 font-medium">8次元のデータを2次元に圧縮。誰と誰が繋がっているか（シンクロ率60%以上）を可視化しました。</p>
-              </div>
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-                <div className="max-w-md mx-auto">
-                  {/* 上軸ラベル */}
-                  <p className="text-center text-[10px] font-bold text-slate-400 mb-2">規律・論理的 ↑</p>
-                  <div className="flex items-center gap-2">
-                    {/* 左軸ラベル */}
-                    <p className="text-[10px] font-bold text-slate-400 flex-shrink-0 [writing-mode:vertical-rl] leading-none">保守・パッシブ</p>
-                    {/* マップ本体 */}
-                    <div className="relative flex-1 aspect-square bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
-                      <div className="absolute top-1/2 left-0 w-full h-px bg-slate-200" />
-                      <div className="absolute top-0 left-1/2 w-px h-full bg-slate-200" />
-                      <div className="absolute top-1/2 left-1/2 w-full h-full border border-slate-200 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
-                      <div className="absolute top-1/2 left-1/2 w-1/2 h-1/2 border border-slate-200 rounded-full transform -translate-x-1/2 -translate-y-1/2" />
-
-                      <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                        {results.allPairs.filter(p => p.percent >= 60).map((conn, i) => {
-                          const p1 = mapData.find(m => m.id === conn.p1.id);
-                          const p2 = mapData.find(m => m.id === conn.p2.id);
-                          if(!p1 || !p2) return null;
-                          return (
-                            <line
-                              key={i}
-                              x1={`${50 + p1.nx * 0.4}%`}
-                              y1={`${50 - p1.ny * 0.4}%`}
-                              x2={`${50 + p2.nx * 0.4}%`}
-                              y2={`${50 - p2.ny * 0.4}%`}
-                              stroke={conn.percent >= 80 ? "#64748b" : "#cbd5e1"}
-                              strokeWidth={conn.percent >= 80 ? 2 : 1}
-                              strokeDasharray={conn.percent >= 80 ? "0" : "4 4"}
-                              className="transition-all duration-1000 ease-out"
-                            />
-                          )
-                        })}
-                      </svg>
-
-                      {mapData.map(p => (
-                        <div
-                          key={p.id}
-                          className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-1000 ease-out"
-                          style={{ left: `${50 + p.nx * 0.4}%`, top: `${50 - p.ny * 0.4}%` }}
-                        >
-                          <div className={`rounded-full border-2 ${p.isMe ? 'bg-slate-900 border-white w-4 h-4 z-20' : 'bg-white border-slate-400 w-3 h-3 z-10'}`} />
-                          <span
-                            className={`text-[10px] font-semibold mt-1 px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap absolute border ${p.isMe ? 'bg-slate-900 text-white border-slate-800 z-30' : 'bg-white/90 backdrop-blur-sm text-slate-600 border-slate-200 z-20'}`}
-                            style={{ top: `${p.labelOffsetY}px` }}
-                          >
-                            {p.name.replace('(Bot)', '')}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    {/* 右軸ラベル */}
-                    <p className="text-[10px] font-bold text-slate-400 flex-shrink-0 [writing-mode:vertical-rl] leading-none">革新・アクティブ</p>
-                  </div>
-                  {/* 下軸ラベル */}
-                  <p className="text-center text-[10px] font-bold text-slate-400 mt-2">↓ 柔軟・共感的</p>
-                </div>
-              </div>
-            </section>
-
-            {/* 5. グループの「隠れた掟」 */}
-            <section className="pt-12 border-t border-slate-200">
-              <div className="mb-6 text-center">
-                <h3 className="font-extrabold text-slate-900 text-2xl tracking-tight">このグループの「隠れた掟」</h3>
-                <p className="text-xs text-slate-500 mt-2 font-medium">全員の回答の偏りから、この集団の暗黙のルールと弱点をあぶり出します。</p>
-              </div>
-              <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200">
-                {results.groupRules.length > 0 ? (
-                  <div className="space-y-8">
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-900 mb-3 uppercase tracking-widest border-b border-slate-200 pb-1">
-                        支配的なルール
-                      </h4>
-                      <ul className="space-y-2">
-                        {results.groupRules.map((rule, i) => (
-                          <li key={i} className="text-slate-700 font-medium text-sm flex items-start gap-2">
-                            <span className="text-slate-400 mt-0.5">―</span> {rule}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-widest border-b border-slate-100 pb-1">
-                        致命的な弱点
-                      </h4>
-                      <ul className="space-y-2">
-                        {results.groupWeaknesses.map((weak, i) => (
-                          <li key={i} className="text-slate-500 font-medium text-sm flex items-start gap-2">
-                            <span className="text-slate-300 mt-0.5">―</span> {weak}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-slate-900 font-extrabold text-lg tracking-tight">究極のバランス型集団</p>
-                    <p className="text-xs text-slate-500 mt-2 font-medium leading-relaxed">突出して偏ったルールがなく、多様な価値観が美しく共存している奇跡のグループです。</p>
-                  </div>
-                )}
-              </div>
-            </section>
-            
-            {/* 6. グループの回答分布 */}
-            <section className="pt-12 border-t border-slate-200">
-              <div className="mb-8 text-center">
-                <h3 className="font-extrabold text-slate-900 text-2xl tracking-tight">グループの回答分布</h3>
-                <p className="text-xs text-slate-500 mt-2 font-medium">みんながどちらの回答を選んだかの割合データです。</p>
-              </div>
-              <div className="bg-white rounded-2xl p-6 sm:p-10 shadow-sm border border-slate-200 space-y-10">
-                {QUESTIONS.map((q, idx) => {
-                  const stats = results.questionStats[idx]
-                  return (
-                    <div key={idx} className="border-b border-slate-100 pb-8 last:border-0 last:pb-0">
-                      <p className="text-sm font-bold text-slate-800 mb-5 leading-relaxed">{q.text}</p>
-                      <div className="space-y-4">
-                        {/* 選択肢A */}
-                        <div className="flex items-start gap-3">
-                          <span className="flex-shrink-0 text-[10px] font-bold text-white bg-slate-800 rounded px-1.5 py-0.5 mt-0.5 leading-tight">A</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-baseline gap-2 mb-1.5">
-                              <span className="text-xs text-slate-700 font-medium leading-snug">{q.a}</span>
-                              <span className="flex-shrink-0 font-bold text-slate-900 text-sm tabular-nums">{stats.aPercent}%</span>
-                            </div>
-                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <div style={{ width: `${stats.aPercent}%` }} className="bg-slate-800 h-full transition-all duration-1000 rounded-full" />
-                            </div>
-                          </div>
-                        </div>
-                        {/* 選択肢B */}
-                        <div className="flex items-start gap-3">
-                          <span className="flex-shrink-0 text-[10px] font-bold text-slate-500 bg-slate-200 rounded px-1.5 py-0.5 mt-0.5 leading-tight">B</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-baseline gap-2 mb-1.5">
-                              <span className="text-xs text-slate-500 font-medium leading-snug">{q.b}</span>
-                              <span className="flex-shrink-0 font-bold text-slate-500 text-sm tabular-nums">{stats.bPercent}%</span>
-                            </div>
-                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <div style={{ width: `${stats.bPercent}%` }} className="bg-slate-300 h-full transition-all duration-1000 rounded-full" />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-
-          </div>
-
-          <div className="mt-16 flex flex-col gap-5 max-w-sm mx-auto pb-8">
-            <button onClick={completelyResetGame} className="w-full py-4 bg-slate-900 text-white rounded-xl font-medium text-lg hover:bg-slate-800 active:scale-[0.98] transition-all shadow-sm">最初からもう一度遊ぶ</button>
-          </div>
+            <Credit
+              onMethodology={() => setShowMethodology(true)}
+              onAlgorithm={() => setShowAlgorithm(true)}
+            />
+          </Screen>
         </div>
-        <DeveloperCredit />
-      </div>
+        {modals}
+      </>
     )
   }
 

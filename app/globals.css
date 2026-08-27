@@ -1,3 +1,231 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ==================================================================
+   Foundation
+   ================================================================== */
+@layer base {
+  :root {
+    /* 和文はシステムフォント優先。Hiragino / 游 が無い環境のみ Noto を使う */
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Hiragino Sans',
+      'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic Medium', 'Yu Gothic',
+      Meiryo, sans-serif;
+    --font-serif: 'Hiragino Mincho ProN', 'Yu Mincho', YuMincho, 'Noto Serif JP',
+      'Shippori Mincho', serif;
+    --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, 'JetBrains Mono', Menlo,
+      monospace;
+
+    --ease-apple: cubic-bezier(0.32, 0.72, 0, 1);
+    --ease-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: #f7f5f2;
+    color: #141210;
+    font-family: var(--font-sans);
+    /* palt: 和文の字間を詰めて、欧文と同じリズムで読ませる */
+    font-feature-settings: 'palt' 1;
+    letter-spacing: 0.01em;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* 紙の繊維のような、ごく淡いテクスチャ。均一なベタ塗りの「作り物感」を消す */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.5;
+    background-image:
+      radial-gradient(circle at 18% 12%, rgba(39, 64, 107, 0.045), transparent 42%),
+      radial-gradient(circle at 84% 8%, rgba(168, 83, 54, 0.035), transparent 38%),
+      radial-gradient(circle at 50% 100%, rgba(20, 18, 16, 0.03), transparent 55%);
+  }
+
+  ::selection {
+    background: rgba(39, 64, 107, 0.14);
+  }
+
+  input,
+  button,
+  textarea {
+    font-family: inherit;
+    font-feature-settings: inherit;
+  }
+
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  :focus-visible {
+    outline: 2px solid #27406b;
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+
+  /* スクロールバーも紙の一部として扱う */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #dcd6cb;
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #c3bbac;
+    background-clip: content-box;
+  }
+}
+
+/* ==================================================================
+   Components
+   ================================================================== */
+@layer components {
+  /* --- タイポグラフィ ------------------------------------------- */
+  .u-display {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.14;
+    font-feature-settings: 'palt' 1;
+    /* 和文を文節単位で折り返す（対応ブラウザのみ／非対応環境は従来どおり） */
+    word-break: auto-phrase;
+    line-break: strict;
+  }
+
+  .u-title {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    line-height: 1.4;
+    word-break: auto-phrase;
+    line-break: strict;
+  }
+
+  /* 和文本文は 1.9 前後の行間が最も読みやすい */
+  .u-body {
+    line-height: 1.9;
+    letter-spacing: 0.02em;
+  }
+
+  .u-eyebrow {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #9a9288;
+  }
+
+  .u-num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  /* --- 面 ------------------------------------------------------- */
+  .u-card {
+    background: #ffffff;
+    border: 1px solid #e6e1d9;
+    border-radius: 20px;
+    box-shadow: 0 1px 2px rgba(20, 18, 16, 0.04),
+      0 12px 32px -20px rgba(20, 18, 16, 0.22);
+  }
+
+  .u-hairline {
+    border-top: 1px solid #e6e1d9;
+  }
+
+  /* 上部が明るく、下に向かってわずかに沈む——紙に当たる光の再現 */
+  .u-sheen {
+    background-image: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.9) 0%,
+      rgba(255, 255, 255, 0) 46%
+    );
+  }
+
+  .u-blur-bar {
+    background: rgba(247, 245, 242, 0.72);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+  }
+
+  /* --- インタラクション ----------------------------------------- */
+  /* 押した瞬間に反応する（離した時ではなく） */
+  .u-press {
+    transition: transform 0.24s var(--ease-apple), box-shadow 0.24s var(--ease-apple),
+      border-color 0.24s var(--ease-apple), background-color 0.24s var(--ease-apple),
+      color 0.24s var(--ease-apple), opacity 0.24s var(--ease-apple);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .u-press:active:not(:disabled) {
+    transform: scale(0.978);
+  }
+
+  .u-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 4px rgba(20, 18, 16, 0.05),
+      0 20px 44px -24px rgba(20, 18, 16, 0.3);
+  }
+
+  /* --- 罫線・区切り --------------------------------------------- */
+  .u-rule {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #ddd7cc 18%, #ddd7cc 82%, transparent);
+  }
+}
+
+/* ==================================================================
+   Utilities
+   ================================================================== */
+@layer utilities {
+  .u-stagger > * {
+    animation: rise 0.62s var(--ease-quint) both;
+  }
+  .u-stagger > *:nth-child(1) { animation-delay: 0.02s; }
+  .u-stagger > *:nth-child(2) { animation-delay: 0.08s; }
+  .u-stagger > *:nth-child(3) { animation-delay: 0.14s; }
+  .u-stagger > *:nth-child(4) { animation-delay: 0.2s; }
+  .u-stagger > *:nth-child(5) { animation-delay: 0.26s; }
+  .u-stagger > *:nth-child(6) { animation-delay: 0.32s; }
+  .u-stagger > *:nth-child(7) { animation-delay: 0.38s; }
+  .u-stagger > *:nth-child(8) { animation-delay: 0.44s; }
+
+  .u-no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .u-no-scrollbar {
+    scrollbar-width: none;
+  }
+}
+
+/* 動きに敏感な人のために、すべての演出を無効化する */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
